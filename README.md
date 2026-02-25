@@ -27,6 +27,7 @@ README: This file!
 
 **Project Guiding Questions**
 
+
 *Who is the intended audience for your project?*
 --Techinical and non-technical management personal of banking sector.
 *What is the question you will answer with your analysis?*
@@ -42,7 +43,10 @@ README: This file!
 *Are there any specific libraries or frameworks that are well-suited to your project requirements?*
 we will use data set, pandas, numpy to extract all data. we will use sklearn.model_selection for test and train data to compite and train the model. Additional Details will be added here.
 
+
+
 **Data Science Guiding Details**
+
 
 *How can you tailor the visualizations to effectively communicate with your audience?*
 *What type of visualization best suits your data and objectives (e.g., bar chart, scatter plot, heatmap)?*
@@ -51,7 +55,10 @@ we will use data set, pandas, numpy to extract all data. we will use sklearn.mod
 *How can you ensure that your visualization accurately represents the underlying data without misleading or misinterpreting information?*
 *Are there any privacy concerns or sensitive information that need to be addressed in your visualization?*
 
+
 **Machine Learning Guiding Details**
+
+
 *What are the specific objectives and success criteria for your machine learning model?*
 *How can you select the most relevant features for training?*
 *Are there any missing values or outliers that need to be addressed through preprocessing?*
