@@ -28,19 +28,19 @@ README: This file!
 **Project Guiding Questions**
 
 
-*Who is the intended audience for your project?*
+Who is the intended audience for your project?
 --Techinical and non-technical management personal of banking sector.
-*What is the question you will answer with your analysis?*
+What is the question you will answer with your analysis?
 --The aim of the project is to create a model that can predict if a Customer will sign up for a Term load based on their input dataset collection of demographic data, financial data and previous campaign details. This project also aims to export the probability of the same.
-*What are the key variables and attributes in your dataset?*
+What are the key variables and attributes in your dataset?
 --Demographic key variables are age, occupation, marital status and education level. Other attribute is customer default data, mortgage data, loan data, last contacted information, the outcome of last campaign.  
-*Do you need to clean your data, and if so what is the best strategy?*
+Do you need to clean your data, and if so what is the best strategy?
 --Initial scan of data seems good and we can start with data as is for now.
-*How can you explore the relationships between different variables?*
+How can you explore the relationships between different variables?
 --Using the model we can see the relationships between demographic and other attributes which can be highly weighted like default data, mortgage data and loan data.
-*What types of patterns or trends are in your data?*
+What types of patterns or trends are in your data?
 --There coulbe simple patterns like default customers will not take the term loan with being short on savings. There is high probability of pattern for customer contacted in last months who didnt sign up for term deposit will not sign up again if contact in short time like 1 month.
-*Are there any specific libraries or frameworks that are well-suited to your project requirements?*
+Are there any specific libraries or frameworks that are well-suited to your project requirements?
 we will use data set, pandas, numpy to extract all data. we will use sklearn.model_selection for test and train data to compite and train the model. Additional Details will be added here.
 
 
