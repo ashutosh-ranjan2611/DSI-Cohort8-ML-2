@@ -25,14 +25,10 @@ src: Project source code.
 README: This file!
 .gitignore: Files to exclude from this folder (e.g., large data files).
 
-**Project Guiding Questions**
-
+### Project Guiding Questions
 Who is the intended audience for your project?
-
 --Techinical and non-technical management personal of banking sector.
-
 What is the question you will answer with your analysis?
-
 --The aim of the project is to create a model that can predict if a Customer will sign up for a Term load based on their input dataset collection of demographic data, financial data and previous campaign details. This project also aims to export the probability of the same.
 
 What are the key variables and attributes in your dataset?
