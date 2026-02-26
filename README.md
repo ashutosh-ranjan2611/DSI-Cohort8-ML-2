@@ -27,7 +27,6 @@ README: This file!
 
 **Project Guiding Questions**
 
-
 Who is the intended audience for your project?
 
 --Techinical and non-technical management personal of banking sector.
@@ -55,6 +54,32 @@ What types of patterns or trends are in your data?
 Are there any specific libraries or frameworks that are well-suited to your project requirements?
 
 --we will use data set, pandas, numpy to extract all data. we will use sklearn.model_selection for test and train data to compite and train the model. Additional Details will be added here.
+
+
+FEB25
+Q1. Who are Stakeholders? and why do they care?
+
+Primary Stakeholders (Direct Users)
+--Marketing Team — decides whom to contact
+--Campaign Managers — plan outreach strategy
+--Sales Agents / Call Center Teams — execute whom to calls
+
+Secondary Stakeholders (Decision Makers)
+--Business Executives — care about ROI and revenue
+--Finance Team — monitors campaign costs
+--Data Science Team — maintains model
+
+Tertiary Stakeholders (Indirect Impact)
+--Customers — receive more relevant offers
+--Compliance/Risk Teams — ensure ethical targeting
+
+Q2. How to use data set to define stakeholder relevent information
+
+Q3. Risks and Uncertainities of data set
+
+Q4. Methods and Technologies we will use?
+
+
 
 **Data Science Guiding Details**
 
