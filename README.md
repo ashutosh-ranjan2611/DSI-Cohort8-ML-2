@@ -25,10 +25,14 @@ src: Project source code.
 README: This file!
 .gitignore: Files to exclude from this folder (e.g., large data files).
 
-### Project Guiding Questions
+# Project Guiding Questions
+
 Who is the intended audience for your project?
+
 --Techinical and non-technical management personal of banking sector.
+
 What is the question you will answer with your analysis?
+
 --The aim of the project is to create a model that can predict if a Customer will sign up for a Term load based on their input dataset collection of demographic data, financial data and previous campaign details. This project also aims to export the probability of the same.
 
 What are the key variables and attributes in your dataset?
@@ -52,8 +56,7 @@ Are there any specific libraries or frameworks that are well-suited to your proj
 --we will use data set, pandas, numpy to extract all data. we will use sklearn.model_selection for test and train data to compite and train the model. Additional Details will be added here.
 
 
-FEB25
-Q1. Who are Stakeholders? and why do they care?
+# Who are Stakeholders? and why do they care?
 
 Primary Stakeholders (Direct Users)
 --Marketing Team — decides whom to contact
@@ -69,15 +72,40 @@ Tertiary Stakeholders (Indirect Impact)
 --Customers — receive more relevant offers
 --Compliance/Risk Teams — ensure ethical targeting
 
-Q2. How to use data set to define stakeholder relevent information
+# How to use data set to define stakeholder relevent information
+--The dataset is well-structured, complete, and suitable for machine learning modeling. Although it contains no explicit missing values, certain categorical placeholders represent implicit missing data and must be handled carefully. Additionally, variables such as call duration introduce data leakage and should be excluded. Despite limitations such as class imbalance and lack of detailed behavioral financial information, the dataset provides sufficient demographic, economic, and campaign features to successfully build a predictive classification model for term deposit subscription.
 
-Q3. Risks and Uncertainities of data set
+# Risks and Uncertainities of data set
+Although suitable for modeling, the dataset has some constraints:
 
-Q4. Methods and Technologies we will use?
+### Limited Behavioral Data
+The dataset does not include:
+- transaction history
+- spending patterns
+- credit score
+- digital activity
+These features could significantly improve prediction quality.
+---
+### No Time-Series Structure
+The dataset does not capture chronological behavioral trends. Therefore, models cannot learn temporal patterns such as customer behavior changes over time.
+---
+### Single Source Dataset
+The data comes from one financial institution. Models trained on it may not generalize well to:
+- other banks
+- different regions
+- different economic conditions
+---
+### No Profit or Revenue Information
+The dataset predicts subscription likelihood but does not include financial value indicators such as:
+- customer lifetime value
+- revenue per customer
+- product profitability
+This limits business optimization analysis.
+
+# Methods and Technologies we will use?
 
 
-
-**Data Science Guiding Details**
+# Data Science Guiding Details
 
 How can you tailor the visualizations to effectively communicate with your audience?
 
@@ -91,7 +119,7 @@ How can you ensure that your visualization accurately represents the underlying 
 
 Are there any privacy concerns or sensitive information that need to be addressed in your visualization?
 
-**Machine Learning Guiding Details**
+# Machine Learning Guiding Details
 
 What are the specific objectives and success criteria for your machine learning model?
 
