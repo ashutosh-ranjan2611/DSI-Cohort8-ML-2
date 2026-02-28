@@ -1,0 +1,59 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+*.manifest
+*.spec
+
+# Jupyter Notebooks
+.ipynb_checkpoints
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# Data files
+/data/
+!data/raw/
+!data/interim/
+!data/processed/
+
+# Models
+/models/
+
+# Reports
+/reports/
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# VS Code
+.vscode/
+
+# Test outputs
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+test-results/
+
+# Others
+*.sqlite3
+*.db
+
+# Ignore notebooks output
+notebooks/*.ipynb
+!notebooks/*.ipynb
