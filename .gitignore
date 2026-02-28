@@ -19,17 +19,9 @@ venv/
 ENV/
 env/
 
-# Data files
-/data/
-!data/raw/
-!data/interim/
-!data/processed/
 
-# Models
-/models/
 
-# Reports
-/reports/
+
 
 # Logs
 *.log
