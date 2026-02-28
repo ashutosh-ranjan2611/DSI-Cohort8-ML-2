@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dsi_cohort8_ml2"
+version = "0.1.0"
+description = "DSI Cohort8 ML project"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+  "uv",
+  "numpy>=1.24",
+  "pandas>=2.0",
+  "scikit-learn>=1.2",
+  "matplotlib>=3.7",
+  "seaborn",
+  "jupyterlab",
+  "pytest",
+  "joblib",
+  "scipy",
+]
