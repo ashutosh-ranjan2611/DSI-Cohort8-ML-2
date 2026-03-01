@@ -1,0 +1,33 @@
+{
+  "model": "random_forest",
+  "threshold": 0.1495,
+  "selection_criterion": "composite_score",
+  "composite_weights": {
+    "net_profit": 0.4,
+    "test_recall": 0.25,
+    "test_roc_auc": 0.2,
+    "calibration": 0.15
+  },
+  "sensitivity": {
+    "max_profit": "random_forest",
+    "max_auc": "lightgbm",
+    "max_recall": "random_forest",
+    "best_calibration": "lightgbm",
+    "composite": "random_forest",
+    "profit_heavy": "random_forest",
+    "recall_heavy": "random_forest",
+    "balanced_equal": "lightgbm"
+  },
+  "banking_economics": {
+    "avg_deposit_amount": 10000,
+    "deposit_interest_rate": 0.02,
+    "loan_interest_rate": 0.084,
+    "net_interest_margin": 0.064,
+    "avg_deposit_term_years": 2,
+    "annual_nim_revenue": 640,
+    "lifetime_nim_revenue": 1280,
+    "conservative_fn_cost": 200,
+    "call_cost_per_contact": 5,
+    "fn_to_fp_ratio": 40
+  }
+}

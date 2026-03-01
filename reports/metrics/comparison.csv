@@ -1,0 +1,6 @@
+model,cv_auc,threshold,test_accuracy,test_precision,test_recall,test_f1,test_roc_auc,test_pr_auc,test_brier_score,net_profit,brier_score,norm_net_profit,norm_test_recall,norm_test_roc_auc,norm_calibration,composite_score,overall_rank,strengths
+random_forest,0.7973,0.149,0.1138,0.1128,1.0,0.2027,0.8221,0.4897,0.1471,108350.0,0.1471,1.0,1.0,0.7042,0.8311,0.9155,1,"top profit, high recall, well calibrated"
+lightgbm,0.8013,0.118,0.1154,0.1129,0.9986,0.2028,0.8263,0.4865,0.1446,108010.0,0.1446,0.7375,0.8056,1.0,1.0,0.8464,2,"high recall, strong AUC, well calibrated"
+voting_ensemble,,0.154,0.1188,0.1131,0.9971,0.2032,0.8227,0.4847,0.151,107725.0,0.151,0.5174,0.5972,0.7465,0.5676,0.5907,3,balanced
+logistic_regression,0.7891,0.136,0.1169,0.1129,0.9971,0.2028,0.8121,0.4624,0.1594,107665.0,0.1594,0.471,0.5972,0.0,0.0,0.3377,4,balanced
+xgboost,0.7988,0.181,0.135,0.1146,0.9928,0.2055,0.8216,0.4884,0.1524,107055.0,0.1524,0.0,0.0,0.669,0.473,0.2047,5,balanced
