@@ -1,0 +1,5 @@
+model,baseline_auc,tuned_auc,auc_gain,baseline_logloss,tuned_logloss,logloss_reduction,baseline_brier,tuned_brier,brier_reduction,baseline_profit,tuned_profit,profit_gain
+logistic_regression,0.8121,0.8121,-0.0,0.5101,0.5102,-0.0,0.1593,0.1594,-0.0001,38390,107665.0,69275.0
+random_forest,0.7712,0.8221,0.0509,0.4944,0.478,0.0164,0.0844,0.1471,-0.0627,-64995,108350.0,173345.0
+xgboost,0.7798,0.8216,0.0418,0.4316,0.4917,-0.0601,0.1316,0.1524,-0.0208,20150,107055.0,86905.0
+lightgbm,0.8171,0.8263,0.0092,0.461,0.4706,-0.0095,0.1413,0.1446,-0.0032,35325,108010.0,72685.0
