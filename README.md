@@ -1,15 +1,18 @@
+<h1 align="center">Call Smarter: Predicting Term Deposit Subscribers</h1>
+<p align="center"><b>Data Science Institute — Cohort 8 — ML Team 2</b></p>
 <p align="center">
   <img src="https://img.shields.io/badge/Python-3.12-blue?logo=python&logoColor=white" />
-  <img src="https://img.shields.io/badge/ML-scikit--learn-orange?logo=scikit-learn&logoColor=white" />
-  <img src="https://img.shields.io/badge/Boost-XGBoost%20%7C%20LightGBM-green" />
-  <img src="https://img.shields.io/badge/Tuning-Optuna-blueviolet?logo=optuna" />
-  <img src="https://img.shields.io/badge/Explainability-SHAP-red" />
-  <img src="https://img.shields.io/badge/Dashboard-Streamlit-ff4b4b?logo=streamlit" />
+  <img src="https://img.shields.io/badge/Data-pandas-150458?logo=pandas&logoColor=white" />
+  <img src="https://img.shields.io/badge/Numeric-NumPy-013243?logo=numpy&logoColor=white" />
+  <img src="https://img.shields.io/badge/ML-scikit--learn-F7931E?logo=scikitlearn&logoColor=white" />
+  <img src="https://img.shields.io/badge/Boost-XGBoost%20%7C%20LightGBM-2E8B57" />
+  <img src="https://img.shields.io/badge/Tuning-Optuna-4B0082" />
+  <img src="https://img.shields.io/badge/API-FastAPI-009688?logo=fastapi&logoColor=white" />
+  <img src="https://img.shields.io/badge/Explainability-SHAP-E53935" />
+  <img src="https://img.shields.io/badge/Dashboard-Streamlit-FF4B4B?logo=streamlit&logoColor=white" />
+  <img src="https://img.shields.io/badge/Visualization-Matplotlib%20%7C%20Seaborn-8E44AD" />
   <img src="https://img.shields.io/badge/License-CC%20BY%204.0-lightgrey" />
 </p>
-
-<h1 align="center">Predicting Term Deposit Subscription</h1>
-<p align="center"><b>Data Science Institute — Cohort 8 — ML Team 2</b></p>
 
 ---
 
@@ -268,17 +271,19 @@ DSI-Cohort8-ML-2/
 |   |-- processed/
 |   |-- raw/
 |   |-- reference/
+|
 |-- experiments/
 |-- models/
 |-- reports/
 |   |-- figures/
 |   |-- metrics/
+|
 |-- scripts/
 |-- src/
 |-- tests/
+|
 |-- requirements.txt
 |-- pyproject.toml
-|-- setup.md
 |-- .gitignore
 |-- README.md
 ```
@@ -356,4 +361,3 @@ Our team of four split the work across the major components of the project. Whil
 ---
 
 <p align="center"><i>Built by DSI Cohort 8 — ML Team 2</i></p>
->>>>>>> e74a3a3 (Initial commit for EDA)
