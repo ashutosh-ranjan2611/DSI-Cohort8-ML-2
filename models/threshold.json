@@ -1,6 +1,6 @@
 {
   "model": "random_forest",
-  "threshold": 0.1495,
+  "threshold": 0.145,
   "selection_criterion": "composite_score",
   "composite_weights": {
     "net_profit": 0.4,
@@ -16,7 +16,7 @@
     "composite": "random_forest",
     "profit_heavy": "random_forest",
     "recall_heavy": "random_forest",
-    "balanced_equal": "lightgbm"
+    "balanced_equal": "random_forest"
   },
   "banking_economics": {
     "avg_deposit_amount": 10000,

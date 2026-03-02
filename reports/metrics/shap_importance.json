@@ -2,52 +2,47 @@
   {
     "feature": "nom__euribor3m_bin_high_rate",
     "technical": "nom__euribor3m_bin_high_rate",
-    "importance": 0.0474
-  },
-  {
-    "feature": "Employment Level",
-    "technical": "num__nr.employed",
-    "importance": 0.0378
+    "importance": 0.0406
   },
   {
     "feature": "3-Month Interest Rate",
     "technical": "num__euribor3m",
-    "importance": 0.0368
+    "importance": 0.039
+  },
+  {
+    "feature": "Employment Level",
+    "technical": "num__nr.employed",
+    "importance": 0.0386
   },
   {
     "feature": "Employment Change Rate",
     "technical": "num__emp.var.rate",
-    "importance": 0.0334
+    "importance": 0.0342
   },
   {
     "feature": "Contact: Telephone",
     "technical": "nom__contact_telephone",
-    "importance": 0.017
-  },
-  {
-    "feature": "nom__month_may",
-    "technical": "nom__month_may",
-    "importance": 0.0165
+    "importance": 0.0181
   },
   {
     "feature": "Euribor: Low Rate Env",
     "technical": "nom__euribor3m_bin_low_rate",
-    "importance": 0.0153
+    "importance": 0.0181
   },
   {
-    "feature": "Consumer Price Index",
-    "technical": "num__cons.price.idx",
-    "importance": 0.0098
+    "feature": "nom__month_may",
+    "technical": "nom__month_may",
+    "importance": 0.0175
   },
   {
     "feature": "Consumer Confidence",
     "technical": "num__cons.conf.idx",
-    "importance": 0.0091
+    "importance": 0.0102
   },
   {
     "feature": "Recency of Contact",
     "technical": "num__pdays_log",
-    "importance": 0.0085
+    "importance": 0.0093
   },
   {
     "feature": "Was Contacted Before",
@@ -55,8 +50,13 @@
     "importance": 0.0083
   },
   {
+    "feature": "Consumer Price Index",
+    "technical": "num__cons.price.idx",
+    "importance": 0.0081
+  },
+  {
     "feature": "Previous Campaign: Success",
     "technical": "nom__poutcome_success",
-    "importance": 0.0066
+    "importance": 0.0067
   }
 ]
