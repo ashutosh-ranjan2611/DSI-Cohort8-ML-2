@@ -177,9 +177,16 @@ SELECTION_WEIGHTS = {
 }
 
 
-def composite_model_score(comp_df: pd.DataFrame) -> pd.DataFrame:
+def composite_model_score(
+    comp_df: pd.DataFrame, weights: dict | None = None
+) -> pd.DataFrame:
     """
     Rank models using weighted composite score across multiple criteria.
+
+    Args:
+        comp_df: DataFrame with one row per model and metric columns.
+        weights: Optional weight dict overriding SELECTION_WEIGHTS.
+                 Pass alternate weights here instead of mutating the global.
 
     Scoring:
       1. Min-max normalize each metric to [0, 1]
@@ -187,6 +194,7 @@ def composite_model_score(comp_df: pd.DataFrame) -> pd.DataFrame:
       3. Sum weighted scores → composite score
       4. Rank by composite score (higher = better)
     """
+    weights = weights or SELECTION_WEIGHTS
     df = comp_df.copy()
 
     metrics_config = {
@@ -214,7 +222,7 @@ def composite_model_score(comp_df: pd.DataFrame) -> pd.DataFrame:
         else:
             normalized = pd.Series(1.0, index=values.index)
 
-        weight = SELECTION_WEIGHTS[metric_name]
+        weight = weights[metric_name]
         df[f"norm_{metric_name}"] = normalized.round(4)
         composite += weight * normalized.values
 
@@ -316,12 +324,10 @@ def selection_sensitivity_analysis(comp_df: pd.DataFrame) -> dict[str, str]:
         },
     }
 
-    for profile_name, weights in alt_weights.items():
-        original = SELECTION_WEIGHTS.copy()
-        SELECTION_WEIGHTS.update(weights)
-        scored_alt = composite_model_score(comp_df)
+    for profile_name, profile_weights in alt_weights.items():
+        # Pass weights as a parameter — never mutate the global SELECTION_WEIGHTS
+        scored_alt = composite_model_score(comp_df, weights=profile_weights)
         results[profile_name] = scored_alt.iloc[0]["model"]
-        SELECTION_WEIGHTS.update(original)
 
     unique_winners = set(results.values())
     if len(unique_winners) == 1:

@@ -146,17 +146,192 @@ def metric_log(label, value):
 # ═══════════════════════════════════════════════════════════════════════════════
 # STEP 1–3 : DATA
 # ═══════════════════════════════════════════════════════════════════════════════
+
+# ANSI helpers reused across tables
+_C  = "\033[96m"   # cyan  — headers / borders
+_Y  = "\033[93m"   # yellow — values
+_G  = "\033[92m"   # green  — OK / pass
+_W  = "\033[93m"   # warning
+_B  = "\033[1m"    # bold
+_R  = "\033[0m"    # reset
+
+
+def _tbl_row(*cells, widths, sep="│"):
+    """Render one table row with right-padded cells."""
+    body = f" {sep} ".join(
+        f"{_Y}{str(c):<{w}}{_R}" for c, w in zip(cells, widths)
+    )
+    return f"  {_C}{sep}{_R} {body} {_C}{sep}{_R}"
+
+
+def _tbl_div(widths, left="├", mid="┼", right="┤", fill="─"):
+    segments = (fill * (w + 2) for w in widths)
+    return f"  {_C}{left}" + f"{mid}".join(segments) + f"{right}{_R}"
+
+
+def _tbl_head(headers, widths):
+    body = f" {_C}│{_R} ".join(
+        f"{_B}{_C}{h:<{w}}{_R}" for h, w in zip(headers, widths)
+    )
+    return f"  {_C}│{_R} {body} {_C}│{_R}"
+
+
+def _tbl_top(widths):
+    segments = ("─" * (w + 2) for w in widths)
+    return f"  {_C}┌" + "┬".join(segments) + f"┐{_R}"
+
+
+def _tbl_bot(widths):
+    segments = ("─" * (w + 2) for w in widths)
+    return f"  {_C}└" + "┴".join(segments) + f"┘{_R}"
+
+
+def _section(title: str):
+    log.info(f"  {_B}{_C}▸ {title}{_R}")
+
+
+def _print_data_report(df_raw, df, tr, va, te):
+    """Print a structured tabular summary of the full ingest → clean → split pipeline."""
+
+    IMPUTE_COLS = ["job", "marital", "housing", "loan"]
+    KEEP_COLS   = ["education", "default"]
+    OUTLIER_COLS_CHK = [
+        "age", "campaign", "pdays", "previous",
+        "emp.var.rate", "cons.price.idx", "cons.conf.idx", "euribor3m", "nr.employed",
+    ]
+    SKEW_COLS = ["age", "campaign", "previous", "emp.var.rate",
+                 "cons.price.idx", "cons.conf.idx", "euribor3m", "nr.employed"]
+    log.info("")
+
+    # ── 1. Dataset Overview ──────────────────────────────────────────────────
+    _section("Dataset Overview")
+    duplicates = len(df_raw) - len(df)
+    w = [18, 12]
+    log.info(_tbl_top(w))
+    log.info(_tbl_head(["Metric", "Value"], w))
+    log.info(_tbl_div(w))
+    for label, val in [
+        ("Raw records",      f"{len(df_raw):,}"),
+        ("After de-dup",     f"{len(df):,}"),
+        ("Duplicates removed", f"{duplicates:,}"),
+        ("Features (prod)",  str(len(df.columns))),
+        ("Positive rate",    f"{df[TARGET].mean():.1%}"),
+    ]:
+        log.info(_tbl_row(label, val, widths=w))
+    log.info(_tbl_bot(w))
+    log.info("")
+
+    # ── 2. Data Splits ───────────────────────────────────────────────────────
+    _section("Stratified Split  (70 / 15 / 15)")
+    w = [8, 10, 14]
+    log.info(_tbl_top(w))
+    log.info(_tbl_head(["Split", "Rows", "Positive Rate"], w))
+    log.info(_tbl_div(w))
+    for name, split in [("Train", tr), ("Val", va), ("Test", te)]:
+        log.info(_tbl_row(name, f"{len(split):,}", f"{split[TARGET].mean():.1%}", widths=w))
+    log.info(_tbl_bot(w))
+    log.info("")
+
+    # ── 3. Cardinality ───────────────────────────────────────────────────────
+    _section("Categorical Cardinality")
+    cat_cols = df_raw.select_dtypes(include="object").columns.tolist()
+    w = [18, 8, 10, 24]
+    log.info(_tbl_top(w))
+    log.info(_tbl_head(["Column", "Levels", "Min Count", "Flag"], w))
+    log.info(_tbl_div(w))
+    for col in cat_cols:
+        if col == "duration":
+            continue
+        vc = df_raw[col].value_counts()
+        flag = f"⚠️  rare: '{vc.idxmin()}' ({vc.min()})" if vc.min() < 50 else "✅ OK"
+        log.info(_tbl_row(col, vc.nunique(), f"{vc.min():,}", flag, widths=w))
+    log.info(_tbl_bot(w))
+    log.info("")
+
+    # ── 4. Outlier Clipping ──────────────────────────────────────────────────
+    _section("Outlier Clipping  (1st / 99th percentile)")
+    available = [c for c in OUTLIER_COLS_CHK if c in df_raw.columns]
+    w = [18, 10, 7, 10, 10]
+    log.info(_tbl_top(w))
+    log.info(_tbl_head(["Column", "Outliers", "Pct", "Low Bound", "High Bound"], w))
+    log.info(_tbl_div(w))
+    for col in available:
+        q01, q99 = df_raw[col].quantile(0.01), df_raw[col].quantile(0.99)
+        n = int(((df_raw[col] < q01) | (df_raw[col] > q99)).sum())
+        pct = n / len(df_raw) * 100
+        log.info(_tbl_row(col, f"{n:,}", f"{pct:.1f}%", f"{q01:.2f}", f"{q99:.2f}", widths=w))
+    log.info(_tbl_bot(w))
+    log.info("")
+
+    # ── 5. Skewness ──────────────────────────────────────────────────────────
+    _section("Skewness & Kurtosis")
+    available_sk = [c for c in SKEW_COLS if c in df.columns and np.issubdtype(df[c].dtype, np.number)]
+    w = [18, 9, 11, 10]
+    log.info(_tbl_top(w))
+    log.info(_tbl_head(["Column", "Skewness", "Kurtosis", "Status"], w))
+    log.info(_tbl_div(w))
+    for col in available_sk:
+        sk, ku = df[col].skew(), df[col].kurtosis()
+        status = "⚠️  HIGH" if abs(sk) > 2 else "✅ OK"
+        log.info(_tbl_row(col, f"{sk:+.2f}", f"{ku:.2f}", status, widths=w))
+    log.info(_tbl_bot(w))
+    log.info("")
+
+    # ── 6. Multicollinearity ─────────────────────────────────────────────────
+    _section("Multicollinearity  (|r| > 0.80)")
+    num_cols = [c for c in SKEW_COLS if c in df.columns and np.issubdtype(df[c].dtype, np.number)]
+    corr = df[num_cols].corr().abs()
+    pairs = [
+        (num_cols[i], num_cols[j], corr.iloc[i, j])
+        for i in range(len(num_cols))
+        for j in range(i + 1, len(num_cols))
+        if corr.iloc[i, j] > 0.8
+    ]
+    w = [18, 18, 8, 30]
+    log.info(_tbl_top(w))
+    log.info(_tbl_head(["Feature A", "Feature B", "|r|", "Mitigation"], w))
+    log.info(_tbl_div(w))
+    mitigation = "L1 (LogReg) + tree invariance"
+    for f1, f2, r in pairs:
+        log.info(_tbl_row(f1, f2, f"{r:.3f}", mitigation, widths=w))
+    if not pairs:
+        log.info(_tbl_row("—", "No high-correlation pairs found", "", "", widths=w))
+    log.info(_tbl_bot(w))
+    log.info("")
+
+    # ── 7. Unknown Handling ──────────────────────────────────────────────────
+    _section("Unknown Value Handling")
+    w = [18, 10, 12, 24]
+    log.info(_tbl_top(w))
+    log.info(_tbl_head(["Column", "Unknowns", "Strategy", "Mode / Category"], w))
+    log.info(_tbl_div(w))
+    for col in IMPUTE_COLS:
+        if col in df_raw.columns:
+            n = int((df_raw[col] == "unknown").sum())
+            mode_val = df_raw.loc[df_raw[col] != "unknown", col].mode()[0] if n else "—"
+            log.info(_tbl_row(col, f"{n:,}", "Impute (mode)", f"→ '{mode_val}'", widths=w))
+    for col in KEEP_COLS:
+        if col in df_raw.columns:
+            n = int((df_raw[col] == "unknown").sum())
+            log.info(_tbl_row(col, f"{n:,}", "Keep as cat.", "informative signal", widths=w))
+    log.info(_tbl_bot(w))
+    log.info("")
+
+
 def step_data():
     banner("STEP 1–3  ·  INGEST → CLEAN → SPLIT", "📦")
+
+    # Suppress per-line chatter from src modules — tables replace it below
+    for mod in ("src.ingest", "src.clean", "src.split"):
+        logging.getLogger(mod).setLevel(logging.WARNING)
+
     download_and_extract()
     df_raw = load_raw_data()
     df = clean_data(df_raw, production=True)
     tr, va, te = stratified_split(df)
     save_splits(tr, va, te)
-    log.info(
-        f"  📊 Raw: {len(df_raw):,}  Clean: {len(df):,}  |  Train: {len(tr):,}  Val: {len(va):,}  Test: {len(te):,}"
-    )
-    log.info(f"  📊 Positive rate: {df[TARGET].mean():.1%}")
+
+    _print_data_report(df_raw, df, tr, va, te)
     return df_raw, df, tr, va, te
 
 
@@ -395,7 +570,7 @@ def step_eda(df_raw, df):
                     df_raw.loc[df_raw[TARGET] == 0, col].dropna(),
                     df_raw.loc[df_raw[TARGET] == 1, col].dropna(),
                 ],
-                labels=["No Sub", "Subscribed"],
+                tick_labels=["No Sub", "Subscribed"],
                 patch_artist=True,
                 boxprops=dict(facecolor="#AED6F1", edgecolor="black"),
                 medianprops=dict(color="red", linewidth=2),
@@ -904,10 +1079,28 @@ def step_baseline_models(X_tr, y_tr, X_te, y_te, use_binning):
             "recall": tp / (tp + fn) if (tp + fn) > 0 else 0,
             "precision": tp / (tp + fp) if (tp + fp) > 0 else 0,
         }
-        log.info(
-            f"  📏 {name:25s} │ AUC={auc:.4f}  LogLoss={logloss:.4f}  "
-            f"Brier={brier:.4f}  Profit=${profit:,.0f}"
-        )
+
+    # ── Baseline summary table ────────────────────────────────────────────
+    _section("Baseline Results  (default hyperparameters, threshold = 0.5)")
+    w_bl = [22, 8, 9, 8, 13, 9, 10]
+    log.info(_tbl_top(w_bl))
+    log.info(_tbl_head(
+        ["Model", "AUC", "LogLoss", "Brier", "Net Profit", "Recall", "Precision"],
+        w_bl,
+    ))
+    log.info(_tbl_div(w_bl))
+    for _nm, _br in baseline_results.items():
+        log.info(_tbl_row(
+            _nm,
+            f"{_br['auc']:.4f}",
+            f"{_br['log_loss']:.4f}",
+            f"{_br['brier']:.4f}",
+            f"${_br['profit']:,.0f}",
+            f"{_br['recall']:.3f}",
+            f"{_br['precision']:.3f}",
+            widths=w_bl,
+        ))
+    log.info(_tbl_bot(w_bl))
 
     return baseline_results
 
@@ -959,12 +1152,7 @@ def step_train_and_evaluate(X_tr, y_tr, X_va, y_va, X_te, y_te, n_trials, use_bi
         all_metrics.append(row)
 
         joblib.dump(pipeline, MOD_DIR / f"{name}.joblib")
-        metric_log(
-            name,
-            f"AUC={metrics['roc_auc']:.4f}  Recall={metrics['recall']:.3f}  "
-            f"Thresh={opt_t:.3f}  Profit=${cost['net_profit']:,.0f}  "
-            f"Brier={metrics['brier_score']:.4f}",
-        )
+        # progress stored in all_metrics; summary table printed after ensemble
 
     # ── LightGBM ─────────────────────────────────────────────────────────────
     if HAS_LGBM:
@@ -1006,12 +1194,7 @@ def step_train_and_evaluate(X_tr, y_tr, X_va, y_va, X_te, y_te, n_trials, use_bi
         row["brier_score"] = round(metrics["brier_score"], 4)
         all_metrics.append(row)
         joblib.dump(lgb_pipe, MOD_DIR / "lightgbm.joblib")
-        metric_log(
-            "lightgbm",
-            f"AUC={metrics['roc_auc']:.4f}  Recall={metrics['recall']:.3f}  "
-            f"Thresh={opt_t:.3f}  Profit=${cost['net_profit']:,.0f}  "
-            f"Brier={metrics['brier_score']:.4f}",
-        )
+        # progress stored in all_metrics; summary table printed after ensemble
     else:
         log.info("  ⚠️  LightGBM not installed — skipping")
 
@@ -1075,12 +1258,31 @@ def step_train_and_evaluate(X_tr, y_tr, X_va, y_va, X_te, y_te, n_trials, use_bi
         {"preprocess": preprocess_pipe, "voter": voter},
         MOD_DIR / "voting_ensemble.joblib",
     )
-    metric_log(
-        "voting_ensemble",
-        f"AUC={metrics['roc_auc']:.4f}  Recall={metrics['recall']:.3f}  "
-        f"Thresh={opt_t:.3f}  Profit=${cost['net_profit']:,.0f}  "
-        f"Brier={metrics['brier_score']:.4f}",
-    )
+    # ── Training Results Summary table ─────────────────────────────────────
+    _section("Training Results Summary")
+    w_tr = [22, 7, 9, 8, 8, 8, 8, 12]
+    log.info(_tbl_top(w_tr))
+    log.info(_tbl_head(
+        ["Model", "CV AUC", "Thresh", "Recall", "F1", "ROC-AUC", "Brier", "Net Profit"],
+        w_tr,
+    ))
+    log.info(_tbl_div(w_tr))
+    for _rm in all_metrics:
+        _cv = f"{_rm['cv_auc']:.4f}" if not (
+            isinstance(_rm.get('cv_auc'), float)
+            and np.isnan(_rm.get('cv_auc', float('nan')))
+        ) else "  —  "
+        log.info(_tbl_row(
+            _rm["model"], _cv,
+            f"{_rm['threshold']:.3f}",
+            f"{_rm['test_recall']:.3f}",
+            f"{_rm['test_f1']:.4f}",
+            f"{_rm['test_roc_auc']:.4f}",
+            f"{_rm['brier_score']:.4f}",
+            f"${_rm['net_profit']:,.0f}",
+            widths=w_tr,
+        ))
+    log.info(_tbl_bot(w_tr))
 
     # ── COMPOSITE MODEL SELECTION ────────────────────────────────────────────
     comp_df = pd.DataFrame(all_metrics)
@@ -1090,25 +1292,23 @@ def step_train_and_evaluate(X_tr, y_tr, X_va, y_va, X_te, y_te, n_trials, use_bi
 
     # Sensitivity analysis
     sensitivity = selection_sensitivity_analysis(comp_df)
-    log.info("")
-    log.info("  📊 Sensitivity Analysis (winner under each criterion):")
+    _section("Sensitivity Analysis  (winner under each criterion)")
+    w_sa = [22, 22, 12]
+    log.info(_tbl_top(w_sa))
+    log.info(_tbl_head(["Criterion", "Winner", "Status"], w_sa))
+    log.info(_tbl_div(w_sa))
     for criterion, winner in sensitivity.items():
-        marker = "✅" if winner == best_name else "⚠️ "
-        log.info(f"     {marker} {criterion:>18s} → {winner}")
+        status = "✅ Matches" if winner == best_name else "⚠️  Differs"
+        log.info(_tbl_row(criterion, winner, status, widths=w_sa))
+    log.info(_tbl_bot(w_sa))
 
     unique_winners = set(sensitivity.values())
     if len(unique_winners) == 1:
-        log.info(
-            f"\n  \033[1m\033[92m✅ ROBUST: {best_name} wins under ALL criteria!\033[0m"
-        )
+        log.info(f"  {_G}{_B}✅ ROBUST: {best_name} wins under ALL criteria!{_R}")
     elif len(unique_winners) <= 2:
-        log.info(
-            f"\n  \033[1m\033[93m🟡 MOSTLY ROBUST: {best_name} wins composite; {len(unique_winners)} unique winners\033[0m"
-        )
+        log.info(f"  {_Y}{_B}🟡 MOSTLY ROBUST: {best_name} wins composite; {len(unique_winners)} unique winners{_R}")
     else:
-        log.info(
-            f"\n  \033[1m\033[91m⚠️  FRAGILE: {len(unique_winners)} different winners across criteria\033[0m"
-        )
+        log.info(f"  \033[91m{_B}⚠️  FRAGILE: {len(unique_winners)} different winners across criteria{_R}")
 
     # Save everything
     scored_df.to_json(MET_DIR / "comparison.json", orient="records", indent=2)
@@ -1135,16 +1335,27 @@ def step_train_and_evaluate(X_tr, y_tr, X_va, y_va, X_te, y_te, n_trials, use_bi
     best_probs = results[best_name]["y_te_prob"]
     recall_df = recall_analysis(y_te, best_probs)
     recall_df.to_csv(MET_DIR / "recall_analysis.csv", index=False)
-    log.info("  📋 Recall trade-off table saved → recall_analysis.csv")
-
+    _section("Recall Trade-off  (key thresholds)")
+    w_rc = [10, 8, 12, 8, 8, 12]
+    log.info(_tbl_top(w_rc))
+    log.info(_tbl_head(
+        ["Threshold", "Recall", "Calls Made", "Caught", "Missed", "Net Profit"],
+        w_rc,
+    ))
+    log.info(_tbl_div(w_rc))
     for _, r in recall_df.iterrows():
         if r["threshold"] in [0.10, 0.20, 0.30, 0.40, 0.50]:
-            profit_str = f"${r['net_profit']:,.0f}"
-            log.info(
-                f"     t={r['threshold']:.2f}  recall={r['recall']:.3f}  "
-                f"calls={r['calls_made']:,}  caught={r['subscribers_caught']}  "
-                f"missed={r['subscribers_missed']}  profit={profit_str}"
-            )
+            log.info(_tbl_row(
+                f"{r['threshold']:.2f}",
+                f"{r['recall']:.3f}",
+                f"{r['calls_made']:,}",
+                str(int(r['subscribers_caught'])),
+                str(int(r['subscribers_missed'])),
+                f"${r['net_profit']:,.0f}",
+                widths=w_rc,
+            ))
+    log.info(_tbl_bot(w_rc))
+    log.info("  📋 Full table saved → recall_analysis.csv")
 
     return results, pipelines, scored_df
 
@@ -1185,12 +1396,27 @@ def step_tuning_comparison(baseline_results, tuned_results, y_te):
         }
         comparison_rows.append(row)
 
-        profit_gain_str = f"${row['profit_gain']:+,.0f}"
-        log.info(
-            f"  {name:25s} │ AUC: {base['auc']:.4f} → {tuned_metrics['roc_auc']:.4f} "
-            f"({row['auc_gain']:+.4f})  │ LogLoss: {base['log_loss']:.4f} → {tuned_logloss:.4f} "
-            f"({row['logloss_reduction']:+.4f})  │ Profit: {profit_gain_str}"
-        )
+    # ── Tuning comparison table ───────────────────────────────────────────
+    _section("Before vs After Hyperparameter Tuning  (Optuna)")
+    w_tc = [22, 9, 9, 9, 10, 10, 12]
+    log.info(_tbl_top(w_tc))
+    log.info(_tbl_head(
+        ["Model", "Base AUC", "Tuned AUC", "AUC Gain", "Base Loss", "Tuned Loss", "Profit Gain"],
+        w_tc,
+    ))
+    log.info(_tbl_div(w_tc))
+    for _tr in comparison_rows:
+        log.info(_tbl_row(
+            _tr["model"],
+            f"{_tr['baseline_auc']:.4f}",
+            f"{_tr['tuned_auc']:.4f}",
+            f"{_tr['auc_gain']:+.4f}",
+            f"{_tr['baseline_logloss']:.4f}",
+            f"{_tr['tuned_logloss']:.4f}",
+            f"${_tr['profit_gain']:+,.0f}",
+            widths=w_tc,
+        ))
+    log.info(_tbl_bot(w_tc))
 
     comp_df = pd.DataFrame(comparison_rows)
     comp_df.to_csv(MET_DIR / "tuning_comparison.csv", index=False)
@@ -1799,23 +2025,84 @@ def main():
         "\033[1m\033[92m╚═══════════════════════════════════════════════════════════════╝\033[0m"
     )
 
-    print("\n" + "=" * 65)
-    print("📊 RESULTS SUMMARY")
-    print("=" * 65)
-    display_cols = [c for c in comp_df.columns if not c.startswith("norm_")]
-    print(comp_df[display_cols].to_string(index=False))
+    # ── Results Summary Table ────────────────────────────────────────────────
+    log.info("")
+    log.info(f"  {_B}{_C}{'═' * 73}{_R}")
+    log.info(f"  {_B}{_C}  📊  RESULTS SUMMARY{_R}")
+    log.info(f"  {_B}{_C}{'═' * 73}{_R}")
+    log.info("")
+
+    # ── Per-model metrics table ──────────────────────────────────────────────
+    _section("Model Comparison")
+    w_m = [22, 7, 9, 9, 10, 7, 9, 8, 14]
+    log.info(_tbl_top(w_m))
+    log.info(_tbl_head(
+        ["Model", "CV AUC", "Thresh", "Accuracy", "Precision", "Recall", "F1", "ROC-AUC", "PR-AUC"],
+        w_m,
+    ))
+    log.info(_tbl_div(w_m))
+    for _, row in comp_df.iterrows():
+        cv = f"{row['cv_auc']:.4f}" if not (isinstance(row.get('cv_auc'), float) and np.isnan(row.get('cv_auc', float('nan')))) else "—"
+        log.info(_tbl_row(
+            row["model"], cv,
+            f"{row['threshold']:.3f}",
+            f"{row['test_accuracy']:.4f}",
+            f"{row['test_precision']:.4f}",
+            f"{row['test_recall']:.4f}",
+            f"{row['test_f1']:.4f}",
+            f"{row['test_roc_auc']:.4f}",
+            f"{row['test_pr_auc']:.4f}",
+            widths=w_m,
+        ))
+    log.info(_tbl_bot(w_m))
+    log.info("")
+
+    # ── Business + composite scoring table ──────────────────────────────────
+    _section("Business Impact & Composite Scoring")
+    w_b = [22, 12, 8, 10, 17, 5]
+    log.info(_tbl_top(w_b))
+    log.info(_tbl_head(
+        ["Model", "Net Profit", "Brier", "Composite", "Strengths", "Rank"],
+        w_b,
+    ))
+    log.info(_tbl_div(w_b))
+    for _, row in comp_df.iterrows():
+        medal = {1: "🥇", 2: "🥈", 3: "🥉"}.get(int(row["overall_rank"]), "  ")
+        log.info(_tbl_row(
+            row["model"],
+            f"${row['net_profit']:,.0f}",
+            f"{row['brier_score']:.4f}",
+            f"{row['composite_score']:.4f}",
+            row.get("strengths", "balanced"),
+            f"{medal} #{int(row['overall_rank'])}",
+            widths=w_b,
+        ))
+    log.info(_tbl_bot(w_b))
+    log.info("")
+
+    # ── Winner box ───────────────────────────────────────────────────────────
     best = comp_df.iloc[0]
-    print(f"\n🏆 Winner: {best['model']} (composite={best['composite_score']:.4f})")
-    print(
-        f"   Profit: ${best['net_profit']:,.0f} | Recall: {best['test_recall']:.3f} | "
-        f"AUC: {best['test_roc_auc']:.4f} | Brier: {best['brier_score']:.4f}"
-    )
-    print(
-        f"\n💡 Selection method: Weighted composite (Profit 40% + Recall 25% + AUC 20% + Calibration 15%)"
-    )
-    print(f"📁 Models: {MOD_DIR}")
-    print(f"📊 Figures: {FIG_DIR} ({n_figs} files)")
-    print(f"⏱️  Total time: {elapsed / 60:.1f} minutes")
+    log.info(f"  {_B}{_C}┌{'─' * 71}┐{_R}")
+    log.info(f"  {_B}{_C}│  🏆  Winner : {_Y}{best['model']:<20}{_C}  composite = {_Y}{best['composite_score']:.4f}{_C}{'':>12}│{_R}")
+    log.info(f"  {_B}{_C}│     Profit : {_Y}${best['net_profit']:>10,.0f}{_C}   Recall : {_Y}{best['test_recall']:.3f}{_C}   AUC : {_Y}{best['test_roc_auc']:.4f}{_C}   Brier : {_Y}{best['brier_score']:.4f}{_C}  │{_R}")
+    log.info(f"  {_B}{_C}│  💡 Selection : Profit 40% + Recall 25% + AUC 20% + Calibration 15%{'':>4}│{_R}")
+    log.info(f"  {_B}{_C}└{'─' * 71}┘{_R}")
+    log.info("")
+
+    # ── Run metadata ─────────────────────────────────────────────────────────
+    _section("Run Metadata")
+    w_r = [18, 60]
+    log.info(_tbl_top(w_r))
+    log.info(_tbl_head(["Item", "Value"], w_r))
+    log.info(_tbl_div(w_r))
+    for label, val in [
+        ("Models dir",  str(MOD_DIR)),
+        ("Figures dir", f"{FIG_DIR}  ({n_figs} files)"),
+        ("Metrics dir", str(MET_DIR)),
+        ("Total time",  f"{elapsed / 60:.1f} minutes"),
+    ]:
+        log.info(_tbl_row(label, val, widths=w_r))
+    log.info(_tbl_bot(w_r))
 
 
 if __name__ == "__main__":

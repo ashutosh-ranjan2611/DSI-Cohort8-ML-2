@@ -203,6 +203,7 @@ def test_metrics_return_all_keys():
         "f1",
         "roc_auc",
         "pr_auc",
+        "brier_score",  # was missing — compute_metrics returns 7 keys
     }
 
 

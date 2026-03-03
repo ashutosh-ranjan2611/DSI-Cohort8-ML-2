@@ -8,7 +8,16 @@ from __future__ import annotations
 
 import logging
 
+import mlflow
 import optuna
+
+# ── Suppress noisy MLflow warnings ──────────────────────────────────────────
+# 1. sklearn pickle serialisation advisory — emitted via logging, not warnings
+logging.getLogger("mlflow.sklearn").setLevel(logging.ERROR)
+# 2. pip version resolution failure in conda.yaml generation
+logging.getLogger("mlflow.utils.environment").setLevel(logging.ERROR)
+# 3. MLflow DB migration noise (only relevant on first run)
+logging.getLogger("mlflow.store.db.utils").setLevel(logging.ERROR)
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import StratifiedKFold, cross_val_score
@@ -98,6 +107,11 @@ def tune_model(name: str, X_train, y_train, n_trials: int = 30) -> dict:
         "%s → best AUC: %.4f | params: %s", name, study.best_value, study.best_params
     )
 
+    # Log tuning result to MLflow (no-op when no active run)
+    with mlflow.start_run(run_name=f"tune_{name}", nested=True):
+        mlflow.log_metric(f"{name}_best_auc", study.best_value)
+        mlflow.log_params({f"{name}_{k}": v for k, v in study.best_params.items()})
+
     return {"best_params": best_params, "best_auc": study.best_value, "study": study}
 
 
@@ -106,4 +120,10 @@ def train_final_model(name: str, params: dict, X_train, y_train):
     model = MODEL_CLASSES[name](**params)
     pipeline = build_pipeline(model)
     pipeline.fit(X_train, y_train)
+
+    # Log final model metadata to MLflow (no-op when no active run)
+    with mlflow.start_run(run_name=f"final_{name}", nested=True):
+        mlflow.log_params({f"final_{k}": v for k, v in params.items() if not callable(v)})
+        mlflow.sklearn.log_model(pipeline, name=f"model_{name}")
+
     return pipeline
