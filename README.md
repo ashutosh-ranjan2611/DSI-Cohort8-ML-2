@@ -239,7 +239,7 @@ Accuracy is misleading on imbalanced data — a model that always predicts "no" 
 - AUC measures overall ranking quality but ignores the specific threshold we use in production.
 - Recall can be trivially maximized by predicting everyone as positive.
 
-Instead, we combine four metrics into a weighted composite score. The weights reflect what matters most to the business: profit is weighted highest (40%), followed by recall (25%), AUC (20%), and calibration quality (15%). We then verify the selection is stable by testing it under eight different weighting schemes.
+Instead, we combine four metrics into a weighted composite score. The weights reflect what matters most to the business: profit is weighted highest (40%), followed by recall (25%), AUC (20%), and calibration quality (15%). We then verify the selection is stable by testing it under eight different weighting schemes. For the Model training we have kept using class_weight="balanced" as the weight assignment for each factor will need expert banking knowledge. Due to limitation of knowledge for this prioject we have used balance.
 
 ---
 
@@ -306,6 +306,7 @@ cd DSI-Cohort8-ML-2
 
 # 2. Create a virtual environment
 uv venv .venv --python 3.12
+NOTE-Be careful to create this uv in same location as other uv from earlier in your system
 source .venv/bin/activate          # macOS / Linux
 .venv\Scripts\activate             # Windows
 
