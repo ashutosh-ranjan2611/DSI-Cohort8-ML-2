@@ -1,0 +1,62 @@
+[
+  {
+    "feature": "nom__euribor3m_bin_high_rate",
+    "technical": "nom__euribor3m_bin_high_rate",
+    "importance": 0.0515
+  },
+  {
+    "feature": "3-Month Interest Rate",
+    "technical": "num__euribor3m",
+    "importance": 0.0438
+  },
+  {
+    "feature": "Employment Change Rate",
+    "technical": "num__emp.var.rate",
+    "importance": 0.0383
+  },
+  {
+    "feature": "Employment Level",
+    "technical": "num__nr.employed",
+    "importance": 0.0285
+  },
+  {
+    "feature": "Contact: Telephone",
+    "technical": "nom__contact_telephone",
+    "importance": 0.0204
+  },
+  {
+    "feature": "nom__month_may",
+    "technical": "nom__month_may",
+    "importance": 0.0185
+  },
+  {
+    "feature": "Recency of Contact",
+    "technical": "num__pdays_log",
+    "importance": 0.0121
+  },
+  {
+    "feature": "Euribor: Low Rate Env",
+    "technical": "nom__euribor3m_bin_low_rate",
+    "importance": 0.0119
+  },
+  {
+    "feature": "Consumer Confidence",
+    "technical": "num__cons.conf.idx",
+    "importance": 0.0107
+  },
+  {
+    "feature": "Client Age",
+    "technical": "num__age",
+    "importance": 0.0095
+  },
+  {
+    "feature": "Consumer Price Index",
+    "technical": "num__cons.price.idx",
+    "importance": 0.0093
+  },
+  {
+    "feature": "Was Contacted Before",
+    "technical": "num__was_previously_contacted",
+    "importance": 0.0078
+  }
+]
