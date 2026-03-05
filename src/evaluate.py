@@ -43,6 +43,8 @@ from sklearn.metrics import (
     brier_score_loss,
     confusion_matrix,
     f1_score,
+    log_loss,
+    matthews_corrcoef,
     precision_score,
     recall_score,
     roc_auc_score,
@@ -98,12 +100,14 @@ def get_cost_derivation_text() -> str:
 def compute_metrics(y_true, y_pred, y_prob) -> dict[str, float]:
     """Compute full classification metric suite including calibration."""
     return {
-        "accuracy": float(accuracy_score(y_true, y_pred)),
-        "precision": float(precision_score(y_true, y_pred, zero_division=0)),
-        "recall": float(recall_score(y_true, y_pred, zero_division=0)),
-        "f1": float(f1_score(y_true, y_pred, zero_division=0)),
-        "roc_auc": float(roc_auc_score(y_true, y_prob)),
-        "pr_auc": float(average_precision_score(y_true, y_prob)),
+        "accuracy":    float(accuracy_score(y_true, y_pred)),
+        "precision":   float(precision_score(y_true, y_pred, zero_division=0)),
+        "recall":      float(recall_score(y_true, y_pred, zero_division=0)),
+        "f1":          float(f1_score(y_true, y_pred, zero_division=0)),
+        "roc_auc":     float(roc_auc_score(y_true, y_prob)),
+        "pr_auc":      float(average_precision_score(y_true, y_prob)),
+        "log_loss":    float(log_loss(y_true, y_prob)),
+        "mcc":         float(matthews_corrcoef(y_true, y_pred)),
         "brier_score": float(brier_score_loss(y_true, y_prob)),
     }
 
@@ -299,6 +303,8 @@ def selection_sensitivity_analysis(comp_df: pd.DataFrame) -> dict[str, str]:
     results["max_auc"] = comp_df.loc[comp_df["test_roc_auc"].idxmax(), "model"]
     results["max_recall"] = comp_df.loc[comp_df["test_recall"].idxmax(), "model"]
     results["best_calibration"] = comp_df.loc[comp_df["brier_score"].idxmin(), "model"]
+    if "test_mcc" in comp_df.columns:
+        results["max_mcc"] = comp_df.loc[comp_df["test_mcc"].idxmax(), "model"]
 
     scored = composite_model_score(comp_df)
     results["composite"] = scored.iloc[0]["model"]

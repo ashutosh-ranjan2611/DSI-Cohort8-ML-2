@@ -2,7 +2,9 @@
   "compared_models": [
     "Logistic Regression",
     "Random Forest",
-    "XGBoost"
+    "XGBoost",
+    "SVM",
+    "KNN"
   ],
   "best_model": "xgboost",
   "best_model_file": "production/xgboost.pkl",

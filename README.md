@@ -205,94 +205,92 @@ _Exact values will be generated when the pipeline runs._
 
 ## Pipeline Architecture
 
-The entire analysis will be automated through a single Python script that will execute the following steps in order:
-
-> Click the button below to open the **interactive version** — supports mouse scroll to zoom, drag to pan, and zoom buttons.
-
-[![Open Interactive Pipeline View](https://img.shields.io/badge/%F0%9F%94%8D%20Open%20Interactive%20Pipeline%20View-Click%20to%20Zoom%20%26%20Pan-4A90D9?style=for-the-badge&logo=githubpages&logoColor=white)](docs/pipeline-flow.html)
+> **Zoom the diagram:** Use the **+&nbsp;/ &minus;** controls on the right side of the diagram below (VS Code preview), or open [docs/pipeline-flow.html](docs/pipeline-flow.html) in your browser for the full interactive version with mouse-scroll zoom and drag-to-pan.
 
 ```mermaid
-%%{init: {"theme": "base", "themeVariables": {"fontSize": "18px", "fontFamily": "Segoe UI, Arial, sans-serif", "primaryTextColor": "#1a1a2e", "lineColor": "#555"}} }%%
-flowchart TD
-    subgraph DATA["  Data Layer  "]
-        RAW["**data/raw/**\nbank-additional-full.csv\n41,188 rows · 21 columns"]
-        PROC["**data/processed/**\ntrain / val / test  Parquet"]
-        REF["**data/reference/**\ndrift detection baseline"]
+%%{init: {"theme": "base", "themeVariables": {"fontSize": "16px", "fontFamily": "Segoe UI, Arial, sans-serif", "primaryTextColor": "#1a1a2e", "lineColor": "#64748B"}} }%%
+flowchart LR
+
+    %% ── Orchestrator ──────────────────────────────────────────────────────────
+    SCR(["🔧 scripts/run_pipeline.py\nEnd-to-End CLI Orchestrator"])
+
+    %% ── Stage 1: Raw Data ─────────────────────────────────────────────────────
+    subgraph DATA["📦  Data"]
+        direction TB
+        RAW["data/raw/\nbank-additional-full.csv\n41,188 rows · 20 features"]
+        PROC["data/processed/\ntrain · val · test\n70% · 15% · 15%"]
     end
 
-    subgraph SRC["  src/  —  Core ML Pipeline  "]
-        ING["**ingest.py**\nDownload and Validate UCI ZIP"]
-        CLN["**clean.py**\nDedup · Clip Outliers · Impute Unknowns\nDrop duration in production"]
-        SPL["**split.py**\n70 / 15 / 15 Stratified Split  ·  Seed 42"]
-        FEA["**features.py**\nPdaysTransformer\nNonLinearBinningTransformer\nColumnTransformer"]
-        TRN["**train.py**\nLR · RF · XGBoost · LightGBM\nOptuna Hyperparameter Tuning"]
-        EVL["**evaluate.py**\nMetrics · Optimal Threshold\nBusiness Cost Analysis"]
+    %% ── Stage 2: Core Pipeline ────────────────────────────────────────────────
+    subgraph SRC["⚙️  src/  —  Core Pipeline"]
+        direction TB
+        ING["ingest.py\nDownload & validate UCI data"]
+        CLN["clean.py\nDe-dup · clip outliers\nimpute unknowns · drop duration"]
+        SPL["split.py\nStratified 70/15/15 split\nSeed 42 · class ratio preserved"]
+        FEA["features.py\nPdaysTransformer\nNonLinearBinningTransformer\nColumnTransformer → ~50 features"]
+        TRN["train.py\nLR · RF · XGBoost · SVM · KNN\n5-Fold CV · Optuna tuning"]
+        EVL["evaluate.py\nAUC · F1 · MCC · Log Loss\nOptimal threshold · Net profit"]
     end
 
-    subgraph EXP["  experiments/  —  Jupyter Notebooks  "]
-        N01["**01_eda.ipynb**\nExploratory Data Analysis"]
-        N02["**02_feature_engineering.ipynb**\nStep-by-Step Pipeline Walkthrough"]
-        N03["**03_model_comparison.ipynb**\nTrain All Models and Compare"]
-        N04["**04_shap_analysis.ipynb**\nSHAP Global and Local Explainability"]
-        N05["**05_pipeline_visualization.ipynb**\nArchitecture and Flow Diagrams"]
+    %% ── Stage 3: Outputs ──────────────────────────────────────────────────────
+    subgraph OUT["📁  Outputs"]
+        direction TB
+        MDLALL["models/\nlr · rf · xgboost · svm · knn\nmodels_manifest.json"]
+        MDL["models/production/\nBest model pipeline .pkl\nthreshold.json"]
+        RPT["reports/metrics/\ncomparison · SHAP · recall\ntuning CSV/JSON"]
+        FIG["reports/figures/\n17+ PNG charts"]
     end
 
-    subgraph OUT["  Outputs  "]
-        MDLALL["**models/**\nAll compared models\nlogistic_regression.pkl\nrandom_forest.pkl\nxgboost.pkl\nmodels_manifest.json"]
-        MDL["**models/production/**\nxgboost.pkl  best model\nxgboost_booster.bin"]
-        THR["**models/production/threshold.json**\ncost-optimal threshold + metrics"]
-        RPT["**reports/metrics/**\ncomparison · shap · recall · tuning"]
-        FIG["**reports/figures/**\nall plots and charts"]
+    %% ── Stage 4: Application ──────────────────────────────────────────────────
+    APP(["🖥️  app/main.py\nStreamlit Dashboard\n5 stakeholder tabs"])
+
+    %% ── Experiments (side lane) ───────────────────────────────────────────────
+    subgraph EXP["🔬  experiments/  —  Jupyter Notebooks"]
+        direction TB
+        N01["01_eda.ipynb\nExploratory Data Analysis"]
+        N02["02_feature_engineering.ipynb\nPipeline Walkthrough"]
+        N03["03_model_comparison.ipynb\nTrain · Tune · Compare"]
+        N04["04_shap_analysis.ipynb\nModel Explainability"]
+        N05["05_pipeline_visualization.ipynb\nArchitecture Diagrams"]
     end
 
-    SCR["**scripts/run_pipeline.py**\nSingle-command End-to-End Orchestrator"]
-    APP["**app/main.py**\nStreamlit Dashboard\n5 Stakeholder Tabs"]
-
-    RAW --> ING
-    ING --> CLN
-    CLN --> SPL
-    SPL --> PROC
-    SPL --> REF
-    PROC --> FEA
-    FEA --> TRN
-    TRN --> EVL
-    EVL --> MDLALL
-    EVL --> MDL
-    EVL --> THR
-    EVL --> RPT
-    EVL --> FIG
+    %% ── Main pipeline flow ────────────────────────────────────────────────────
+    RAW --> ING --> CLN --> SPL --> PROC
+    PROC --> FEA --> TRN --> EVL
+    EVL --> MDLALL & MDL & RPT & FIG
     MDL --> APP
-    THR --> APP
-    FIG --> APP
 
-    SCR -. orchestrates .-> ING
-    SCR -. orchestrates .-> CLN
-    SCR -. orchestrates .-> SPL
-    SCR -. orchestrates .-> FEA
-    SCR -. orchestrates .-> TRN
-    SCR -. orchestrates .-> EVL
+    %% ── Orchestrator ties ─────────────────────────────────────────────────────
+    SCR -.->|orchestrates| ING
+    SCR -.->|orchestrates| CLN
+    SCR -.->|orchestrates| SPL
+    SCR -.->|orchestrates| FEA
+    SCR -.->|orchestrates| TRN
+    SCR -.->|orchestrates| EVL
 
-    N01 -. uses .-> RAW
+    %% ── Notebook ties ─────────────────────────────────────────────────────────
+    N01 -. reads .-> RAW
     N03 -. produces .-> MDLALL
     N03 -. produces .-> MDL
-    N04 -. uses .-> MDL
+    N04 -. reads .-> MDL
 
+    %% ── Styles ────────────────────────────────────────────────────────────────
     style DATA fill:#EFF6FF,color:#1E3A8A,stroke:#93C5FD,stroke-width:2px
     style SRC  fill:#F0FDF4,color:#14532D,stroke:#86EFAC,stroke-width:2px
-    style EXP  fill:#FFFBEB,color:#78350F,stroke:#FCD34D,stroke-width:2px
     style OUT  fill:#F5F3FF,color:#3B0764,stroke:#C4B5FD,stroke-width:2px
+    style EXP  fill:#FFFBEB,color:#78350F,stroke:#FCD34D,stroke-width:2px
 
-    classDef dataNode fill:#BFDBFE,color:#1E3A8A,stroke:#3B82F6,stroke-width:1.5px,font-weight:bold
-    classDef srcNode  fill:#BBF7D0,color:#14532D,stroke:#22C55E,stroke-width:1.5px,font-weight:bold
-    classDef expNode  fill:#FDE68A,color:#78350F,stroke:#F59E0B,stroke-width:1.5px,font-weight:bold
-    classDef outNode  fill:#DDD6FE,color:#3B0764,stroke:#8B5CF6,stroke-width:1.5px,font-weight:bold
-    classDef appNode  fill:#FECDD3,color:#881337,stroke:#F43F5E,stroke-width:2px,font-weight:bold
-    classDef scrNode  fill:#E2E8F0,color:#1E293B,stroke:#64748B,stroke-width:2px,font-weight:bold
+    classDef dataNode  fill:#BFDBFE,color:#1E3A8A,stroke:#3B82F6,stroke-width:1.5px
+    classDef srcNode   fill:#BBF7D0,color:#14532D,stroke:#22C55E,stroke-width:1.5px
+    classDef outNode   fill:#DDD6FE,color:#3B0764,stroke:#8B5CF6,stroke-width:1.5px
+    classDef expNode   fill:#FDE68A,color:#78350F,stroke:#F59E0B,stroke-width:1.5px
+    classDef appNode   fill:#FECDD3,color:#881337,stroke:#F43F5E,stroke-width:2px
+    classDef scrNode   fill:#E2E8F0,color:#1E293B,stroke:#64748B,stroke-width:2px
 
-    class RAW,PROC,REF dataNode
+    class RAW,PROC dataNode
     class ING,CLN,SPL,FEA,TRN,EVL srcNode
+    class MDLALL,MDL,RPT,FIG outNode
     class N01,N02,N03,N04,N05 expNode
-    class MDLALL,MDL,THR,RPT,FIG outNode
     class APP appNode
     class SCR scrNode
 ```
@@ -337,26 +335,7 @@ DSI-Cohort8-ML-2/
 
 ## Local Setup
 
-### Prerequisites
-
-- Python 3.12
-- uv
-
-### Setup and Run
-
-```bash
-# 1. Clone the repository
-git clone https://github.com/ashutosh-ranjan2611/DSI-Cohort8-ML-2.git
-cd DSI-Cohort8-ML-2
-
-# 2. Create a virtual environment
-uv venv .venv --python 3.12
-source .venv/bin/activate          # macOS / Linux
-.venv\Scripts\activate             # Windows
-
-# 3. Install dependencies
-uv sync --active
-```
+> Full setup instructions, pipeline execution, and dashboard launch: see **[docs/setup.md](docs/setup.md)**
 
 ---
 

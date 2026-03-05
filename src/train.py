@@ -18,9 +18,12 @@ logging.getLogger("mlflow.sklearn").setLevel(logging.ERROR)
 logging.getLogger("mlflow.utils.environment").setLevel(logging.ERROR)
 # 3. MLflow DB migration noise (only relevant on first run)
 logging.getLogger("mlflow.store.db.utils").setLevel(logging.ERROR)
+from sklearn.calibration import CalibratedClassifierCV
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import StratifiedKFold, cross_val_score
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.svm import LinearSVC
 from xgboost import XGBClassifier
 
 from src.features import build_pipeline
@@ -30,10 +33,22 @@ logger = logging.getLogger(__name__)
 SEED = 42
 CV = StratifiedKFold(n_splits=5, shuffle=True, random_state=SEED)
 
+def _make_linear_svm(**kwargs) -> CalibratedClassifierCV:
+    """Wrap LinearSVC in CalibratedClassifierCV for probability outputs.
+
+    LinearSVC is O(n) vs RBF-SVC's O(n^2–n^3), so it scales to the full
+    training set without subsampling. Isotonic regression calibration
+    (cv=5) gives well-calibrated probabilities.
+    """
+    return CalibratedClassifierCV(LinearSVC(**kwargs), cv=5, method="isotonic")
+
+
 MODEL_CLASSES = {
     "logistic_regression": LogisticRegression,
     "random_forest": RandomForestClassifier,
     "xgboost": XGBClassifier,
+    "svm": _make_linear_svm,   # LinearSVC + isotonic calibration
+    "knn": KNeighborsClassifier,
 }
 
 # Fixed params that Optuna doesn't search over
@@ -50,6 +65,17 @@ FIXED_PARAMS = {
         "eval_metric": "aucpr",
         "random_state": SEED,
         "n_jobs": -1,
+    },
+    "svm": {
+        # LinearSVC fixed params (no kernel/probability needed)
+        "class_weight": "balanced",
+        "random_state": SEED,
+        "max_iter": 5000,
+    },
+    "knn": {
+        "n_jobs": -1,
+        # SMOTE-style imbalance handling not built in — rely on
+        # recall-tuned threshold selection at inference time
     },
 }
 
@@ -77,6 +103,20 @@ def _search_space(trial: optuna.Trial, name: str) -> dict:
             "colsample_bytree": trial.suggest_float("colsample_bytree", 0.6, 1.0),
             "reg_alpha": trial.suggest_float("reg_alpha", 1e-8, 10.0, log=True),
             "reg_lambda": trial.suggest_float("reg_lambda", 1e-8, 10.0, log=True),
+        }
+    elif name == "svm":
+        # LinearSVC — l1 requires dual=False, l2 can use dual=True (faster)
+        penalty = trial.suggest_categorical("penalty", ["l1", "l2"])
+        return {
+            "C": trial.suggest_float("C", 1e-3, 100.0, log=True),
+            "penalty": penalty,
+            "dual": penalty == "l2",  # l1 requires dual=False
+        }
+    elif name == "knn":
+        return {
+            "n_neighbors": trial.suggest_int("n_neighbors", 3, 50),
+            "weights": trial.suggest_categorical("weights", ["uniform", "distance"]),
+            "metric": trial.suggest_categorical("metric", ["euclidean", "manhattan", "minkowski"]),
         }
     raise ValueError(f"Unknown model: {name}")
 

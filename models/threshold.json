@@ -1,6 +1,6 @@
 {
   "model": "random_forest",
-  "threshold": 0.1224,
+  "threshold": 0.0952,
   "selection_criterion": "composite_score",
   "composite_weights": {
     "net_profit": 0.4,

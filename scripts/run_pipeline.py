@@ -33,10 +33,13 @@ import seaborn as sns
 
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier, VotingClassifier
-from sklearn.calibration import calibration_curve
+from sklearn.calibration import CalibratedClassifierCV, calibration_curve
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.svm import LinearSVC
 from sklearn.metrics import (
     confusion_matrix,
     log_loss,
+    matthews_corrcoef,
     roc_curve,
     precision_recall_curve,
     roc_auc_score,
@@ -46,13 +49,6 @@ from sklearn.metrics import (
 from sklearn.model_selection import StratifiedKFold, cross_val_predict
 from sklearn.pipeline import Pipeline as SkPipeline
 from xgboost import XGBClassifier
-
-try:
-    from lightgbm import LGBMClassifier
-
-    HAS_LGBM = True
-except ImportError:
-    HAS_LGBM = False
 
 import optuna
 
@@ -972,42 +968,6 @@ def step_feature_count_sweep(
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# LIGHTGBM TUNING
-# ═══════════════════════════════════════════════════════════════════════════════
-def _tune_lightgbm(X, y, n_trials, cv, use_binning):
-    pos = y.sum()
-    neg = len(y) - pos
-    scale = neg / pos
-
-    def objective(trial):
-        params = {
-            "n_estimators": trial.suggest_int("n_estimators", 100, 600, step=50),
-            "max_depth": trial.suggest_int("max_depth", 3, 12),
-            "learning_rate": trial.suggest_float("learning_rate", 0.005, 0.3, log=True),
-            "subsample": trial.suggest_float("subsample", 0.6, 1.0),
-            "colsample_bytree": trial.suggest_float("colsample_bytree", 0.5, 1.0),
-            "reg_alpha": trial.suggest_float("reg_alpha", 1e-3, 10, log=True),
-            "reg_lambda": trial.suggest_float("reg_lambda", 1e-3, 10, log=True),
-            "num_leaves": trial.suggest_int("num_leaves", 20, 150),
-            "min_child_samples": trial.suggest_int("min_child_samples", 5, 100),
-            "scale_pos_weight": scale,
-        }
-        pipe = build_pipeline(
-            LGBMClassifier(**params, random_state=42, verbosity=-1, n_jobs=-1),
-            use_binning=use_binning,
-        )
-        scores = cross_val_predict(pipe, X, y, cv=cv, method="predict_proba")[:, 1]
-        return roc_auc_score(y, scores)
-
-    study = optuna.create_study(direction="maximize")
-    study.optimize(objective, n_trials=n_trials, show_progress_bar=True)
-    return {
-        "best_params": {**study.best_params, "scale_pos_weight": scale},
-        "best_auc": study.best_value,
-    }
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
 # STEP 5c : BASELINE (Before Tuning) — Default Hyperparameters
 # ═══════════════════════════════════════════════════════════════════════════════
 def step_baseline_models(X_tr, y_tr, X_te, y_te, use_binning):
@@ -1044,18 +1004,23 @@ def step_baseline_models(X_tr, y_tr, X_te, y_te, use_binning):
             eval_metric="aucpr",
         ),
     }
-    if HAS_LGBM:
-        pos = y_tr.sum()
-        neg = len(y_tr) - pos
-        default_configs["lightgbm"] = LGBMClassifier(
-            n_estimators=100,
-            max_depth=-1,
-            learning_rate=0.1,
-            scale_pos_weight=neg / pos,
+    default_configs["svm"] = CalibratedClassifierCV(
+        LinearSVC(
+            C=1.0,
+            penalty="l2",
+            dual=True,
+            class_weight="balanced",
             random_state=42,
-            verbosity=-1,
-            n_jobs=-1,
-        )
+            max_iter=5000,
+        ),
+        cv=5,
+        method="isotonic",
+    )
+    default_configs["knn"] = KNeighborsClassifier(
+        n_neighbors=11,
+        weights="uniform",
+        n_jobs=-1,
+    )
 
     for name, clf in default_configs.items():
         pipe = build_pipeline(clf, use_binning=use_binning)
@@ -1114,8 +1079,8 @@ def step_train_and_evaluate(X_tr, y_tr, X_va, y_va, X_te, y_te, n_trials, use_bi
     all_metrics = []
     pipelines = {}
 
-    # ── Core 3 models ────────────────────────────────────────────────────────
-    for name in ["logistic_regression", "random_forest", "xgboost"]:
+    # ── All 5 models ─────────────────────────────────────────────────────────
+    for name in ["logistic_regression", "random_forest", "xgboost", "svm", "knn"]:
         log.info("")
         log.info(f"  \033[1mTraining: {name} ({n_trials} Optuna trials)\033[0m")
 
@@ -1153,51 +1118,6 @@ def step_train_and_evaluate(X_tr, y_tr, X_va, y_va, X_te, y_te, n_trials, use_bi
             pickle.dump(pipeline, f)
         # progress stored in all_metrics; summary table printed after ensemble
 
-    # ── LightGBM ─────────────────────────────────────────────────────────────
-    if HAS_LGBM:
-        log.info("")
-        log.info(f"  \033[1mTraining: lightgbm ({n_trials} Optuna trials)\033[0m")
-        lgb_result = _tune_lightgbm(X_tr, y_tr, n_trials, cv, use_binning)
-        lgb_pipe = build_pipeline(
-            LGBMClassifier(
-                **lgb_result["best_params"], random_state=42, verbosity=-1, n_jobs=-1
-            ),
-            use_binning=use_binning,
-        )
-        lgb_pipe.fit(X_tr, y_tr)
-        pipelines["lightgbm"] = lgb_pipe
-
-        y_va_prob = lgb_pipe.predict_proba(X_va)[:, 1]
-        opt_t, _ = find_optimal_threshold(y_va, y_va_prob)
-        y_te_prob = lgb_pipe.predict_proba(X_te)[:, 1]
-        y_te_pred = (y_te_prob >= opt_t).astype(int)
-        metrics = compute_metrics(y_te, y_te_pred, y_te_prob)
-        cost = business_cost_analysis(y_te, y_te_pred)
-
-        results["lightgbm"] = {
-            "params": lgb_result["best_params"],
-            "cv_auc": lgb_result["best_auc"],
-            "threshold": opt_t,
-            "test_metrics": metrics,
-            "cost": cost,
-            "y_te_prob": y_te_prob,
-            "y_te_pred": y_te_pred,
-        }
-        row = {
-            "model": "lightgbm",
-            "cv_auc": round(lgb_result["best_auc"], 4),
-            "threshold": round(opt_t, 3),
-        }
-        row.update({f"test_{k}": round(v, 4) for k, v in metrics.items()})
-        row["net_profit"] = round(cost["net_profit"], 0)
-        row["brier_score"] = round(metrics["brier_score"], 4)
-        all_metrics.append(row)
-        with open(MOD_DIR / "lightgbm.pkl", "wb") as f:
-            pickle.dump(lgb_pipe, f)
-        # progress stored in all_metrics; summary table printed after ensemble
-    else:
-        log.info("  LightGBM not installed — skipping")
-
     # ── Diverse Voting Ensemble ──────────────────────────────────────────────
     log.info("")
     log.info(f"  \033[1mBuilding: voting_ensemble (diverse soft vote)\033[0m")
@@ -1210,12 +1130,9 @@ def step_train_and_evaluate(X_tr, y_tr, X_va, y_va, X_te, y_te, n_trials, use_bi
     best_tree = max(tree_candidates, key=tree_candidates.get)
 
     ensemble_members = ["logistic_regression", best_tree]
-    if HAS_LGBM and "lightgbm" in pipelines and "lightgbm" != best_tree:
-        ensemble_members.append("lightgbm")
-    elif "xgboost" in pipelines and "xgboost" != best_tree:
-        ensemble_members.append("xgboost")
-    elif "random_forest" in pipelines and "random_forest" != best_tree:
-        ensemble_members.append("random_forest")
+    for candidate in ["xgboost", "random_forest", "svm", "knn"]:
+        if candidate in pipelines and candidate != best_tree and len(ensemble_members) < 3:
+            ensemble_members.append(candidate)
 
     log.info(f"     Ensemble members: {ensemble_members}")
 
@@ -1791,8 +1708,6 @@ def step_shap(best_pipeline, X_test, y_test, feat_names, best_name):
     sample = X_df.iloc[:800]
 
     tree_models = (RandomForestClassifier, XGBClassifier)
-    if HAS_LGBM:
-        tree_models = tree_models + (LGBMClassifier,)
 
     linear_models = (LogisticRegression,)
 
@@ -1929,24 +1844,20 @@ def main():
 
     use_binning = not args.no_binning
     start = time.time()
-    n_models = 3 + (1 if HAS_LGBM else 0) + 1
+    n_models = 6  # LR, RF, XGB, SVM, KNN + Voting Ensemble
 
     log.info("")
     log.info(
         "\033[1m\033[95m╔═══════════════════════════════════════════════════════════════╗\033[0m"
     )
     log.info(
-        "\033[1m\033[95m║   BANK MARKETING ML PIPELINE v4.1 (Production)               ║\033[0m"
+        "\033[1m\033[95m║   BANK MARKETING ML PIPELINE v4.2 (Production)               ║\033[0m"
     )
     log.info(
-        "\033[1m\033[95m║   Models: LR · RF · XGB"
-        + (" · LGBM" if HAS_LGBM else "")
-        + " · Diverse Ensemble"
-        + " " * (18 - (7 if HAS_LGBM else 0))
-        + "║\033[0m"
+        "\033[1m\033[95m║   Models: LR · RF · XGB · SVM · KNN · Diverse Ensemble       ║\033[0m"
     )
     log.info(
-        "\033[1m\033[95m║   NEW: Outliers · Duplicates · Before/After Tuning Compare   ║\033[0m"
+        "\033[1m\033[95m║   Metrics: Acc · Prec · Rec · F1 · AUC · PR-AUC · LL · MCC  ║\033[0m"
     )
     log.info(
         "\033[1m\033[95m╚═══════════════════════════════════════════════════════════════╝\033[0m"
@@ -2053,6 +1964,72 @@ def main():
             widths=w_m,
         ))
     log.info(_tbl_bot(w_m))
+    log.info("")
+
+    # ── Full All-Models × All-Metrics table ──────────────────────────────────
+    _section("Full Metrics Comparison  (all models × all metrics)")
+    w_full = [22, 9, 10, 7, 9, 8, 10, 9, 8, 14]
+    log.info(_tbl_top(w_full))
+    log.info(_tbl_head(
+        ["Model", "Accuracy", "Precision", "Recall", "F1", "ROC-AUC", "PR-AUC", "Log Loss", "MCC", "Net Profit"],
+        w_full,
+    ))
+    log.info(_tbl_div(w_full))
+    for _, row in comp_df.iterrows():
+        log.info(_tbl_row(
+            row["model"],
+            f"{row['test_accuracy']:.4f}",
+            f"{row['test_precision']:.4f}",
+            f"{row['test_recall']:.4f}",
+            f"{row['test_f1']:.4f}",
+            f"{row['test_roc_auc']:.4f}",
+            f"{row['test_pr_auc']:.4f}",
+            f"{row.get('test_log_loss', float('nan')):.4f}" if 'test_log_loss' in row else "   —  ",
+            f"{row.get('test_mcc', float('nan')):.4f}" if 'test_mcc' in row else "   —  ",
+            f"${row['net_profit']:,.0f}",
+            widths=w_full,
+        ))
+    log.info(_tbl_bot(w_full))
+    log.info("")
+
+    # ── Best Model per Criterion ──────────────────────────────────────────────
+    _section("Best Model per Criterion  (separate selection view)")
+    criteria = {
+        "ROC-AUC (highest)":   comp_df.loc[comp_df["test_roc_auc"].idxmax()],
+        "PR-AUC (highest)":    comp_df.loc[comp_df["test_pr_auc"].idxmax()],
+        "Recall (highest)":    comp_df.loc[comp_df["test_recall"].idxmax()],
+        "Precision (highest)": comp_df.loc[comp_df["test_precision"].idxmax()],
+        "F1 (highest)":        comp_df.loc[comp_df["test_f1"].idxmax()],
+        "Accuracy (highest)":  comp_df.loc[comp_df["test_accuracy"].idxmax()],
+        "Net Profit (highest)": comp_df.loc[comp_df["net_profit"].idxmax()],
+        "Brier Score (lowest)": comp_df.loc[comp_df["brier_score"].idxmin()],
+        "Composite (highest)":  comp_df.iloc[0],
+    }
+    if "test_log_loss" in comp_df.columns:
+        criteria["Log Loss (lowest)"] = comp_df.loc[comp_df["test_log_loss"].idxmin()]
+    if "test_mcc" in comp_df.columns:
+        criteria["MCC (highest)"] = comp_df.loc[comp_df["test_mcc"].idxmax()]
+
+    w_bc = [26, 22, 8, 8, 8, 8, 12]
+    log.info(_tbl_top(w_bc))
+    log.info(_tbl_head(
+        ["Criterion", "Best Model", "Recall", "F1", "AUC", "MCC", "Net Profit"],
+        w_bc,
+    ))
+    log.info(_tbl_div(w_bc))
+    for criterion, best_row in criteria.items():
+        mcc_val = f"{best_row.get('test_mcc', float('nan')):.3f}" if 'test_mcc' in best_row else "—"
+        log.info(_tbl_row(
+            criterion,
+            best_row["model"],
+            f"{best_row['test_recall']:.3f}",
+            f"{best_row['test_f1']:.4f}",
+            f"{best_row['test_roc_auc']:.4f}",
+            mcc_val,
+            f"${best_row['net_profit']:,.0f}",
+            widths=w_bc,
+        ))
+    log.info(_tbl_bot(w_bc))
     log.info("")
 
     # ── Business + composite scoring table ──────────────────────────────────
