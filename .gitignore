@@ -41,9 +41,9 @@ models/*
 
 
 # Reports (auto-generated)
-# reports/figures/*.png
-# reports/metrics/*.json
-# reports/metrics/*.csv
+reports/figures/*.png
+reports/metrics/*.json
+reports/metrics/*.csv
 
 # MLflow (if used locally)
 mlruns/
