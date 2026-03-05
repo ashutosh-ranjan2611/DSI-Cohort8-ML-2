@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from src.features.build_features import PdaysTransformer, build_full_pipeline
+from src.features import PdaysTransformer, build_pipeline as build_full_pipeline
 
 
 def test_pdays_transformer_sentinel():
@@ -35,11 +35,11 @@ def test_pdays_transformer_mixed():
     assert list(result["was_previously_contacted"]) == [0, 1, 0, 1]
 
 
-def test_full_pipeline_fits(synthetic_bank_data):
+def test_full_pipeline_fits(synthetic_data):
     """Pipeline should fit and produce valid probabilities."""
     from sklearn.linear_model import LogisticRegression
 
-    df = synthetic_bank_data.copy()
+    df = synthetic_data.copy()
     # Remove duration if present (production mode)
     df = df.drop(columns=["duration"], errors="ignore")
 

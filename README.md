@@ -5,7 +5,7 @@
   <img src="https://img.shields.io/badge/Data-pandas-150458?logo=pandas&logoColor=white" />
   <img src="https://img.shields.io/badge/Numeric-NumPy-013243?logo=numpy&logoColor=white" />
   <img src="https://img.shields.io/badge/ML-scikit--learn-F7931E?logo=scikitlearn&logoColor=white" />
-  <img src="https://img.shields.io/badge/Boost-XGBoost%20%7C%20LightGBM-2E8B57" />
+  <img src="https://img.shields.io/badge/Boost-XGBoost-2E8B57" />
   <img src="https://img.shields.io/badge/Tuning-Optuna-4B0082" />
   <img src="https://img.shields.io/badge/API-FastAPI-009688?logo=fastapi&logoColor=white" />
   <img src="https://img.shields.io/badge/Explainability-SHAP-E53935" />
@@ -151,13 +151,13 @@ We identified the following risks during our analysis and documented how we addr
 
 ### Modeling Risks
 
-| Risk                                 | Impact                                                                                                                                                                                                                     | Mitigation                                                                                                                                                                                                                     |
-| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Duration leakage**                 | Including call duration would inflate all metrics by 15-20 percentage points but produce a model that cannot be used in practice.                                                                                          | Dropped `duration` from all production models.                                                                                                                                                                                 |
-| **Overfitting**                      | With 30 Optuna trials per model, there is a risk of overfitting to the validation set.                                                                                                                                     | We use 5-fold stratified cross-validation during tuning. The validation set is used only for threshold selection. The test set is touched exactly once for final reporting.                                                    |
-| **Cost assumption sensitivity**      | Our profit calculations depend on the $200 FN and $5 FP estimates. If these are wrong, the "best" model might change.                                                                                                      | We run a sensitivity analysis that tests model selection under eight different criteria and weight profiles. If the same model wins across all of them, we have confidence the selection is robust.                            |
-| **Economic regime change**           | The dataset covers 2008-2010 (during and after the financial crisis). Models trained on this period may not generalize to fundamentally different economic conditions.                                                     | We include macroeconomic features (Euribor rate, employment) so the model can adapt to changing conditions. However, we flag that retraining would be needed if deployed in a different economic era.                          |
-| **Non-linear feature relationships** | Age has a U-shaped relationship with subscription (young students and older retirees subscribe more than middle-aged working adults). Campaign calls show diminishing returns. Standard linear models miss these patterns. | We added a custom binning transformer that creates categorical bins for age, campaign, and euribor3m based on domain knowledge. This helps logistic regression capture non-linear effects while being neutral for tree models. |
+| Risk                                 | Impact                                                                                                                                                                                                                     | Mitigation                                                                                                                                                                                            |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Duration leakage**                 | Including call duration would inflate all metrics by 15-20 percentage points but produce a model that cannot be used in practice.                                                                                          | Dropped `duration` from all production models.                                                                                                                                                        |
+| **Overfitting**                      | With 30 Optuna trials per model, there is a risk of overfitting to the validation set.                                                                                                                                     | We use 5-fold stratified cross-validation during tuning. The validation set is used only for threshold selection. The test set is touched exactly once for final reporting.                           |
+| **Cost assumption sensitivity**      | Our profit calculations depend on the $200 FN and $5 FP estimates. If these are wrong, the "best" model might change.                                                                                                      | We use conservative industry estimates ($5 call cost, $200 LTV) and select by maximum net profit. The estimates are clearly documented so they can be adjusted if better figures are available.       |
+| **Economic regime change**           | The dataset covers 2008-2010 (during and after the financial crisis). Models trained on this period may not generalize to fundamentally different economic conditions.                                                     | We include macroeconomic features (Euribor rate, employment) so the model can adapt to changing conditions. However, we flag that retraining would be needed if deployed in a different economic era. |
+| **Non-linear feature relationships** | Age has a U-shaped relationship with subscription (young students and older retirees subscribe more than middle-aged working adults). Campaign calls show diminishing returns. Standard linear models miss these patterns. | Tree-based models (Random Forest, XGBoost) handle non-linearity automatically. Logistic Regression uses one-hot encoding and numerical scaling; the pipeline preprocessor handles both transparently. |
 
 ---
 
@@ -165,41 +165,41 @@ We identified the following risks during our analysis and documented how we addr
 
 ### Why These Models
 
-We will use four individual models plus one ensemble:
+We use four models — one interpretable baseline, two tree-based ensembles, and one distance-based model:
 
-| Model               | Role in the Pipeline               | Strength                                                                                                                 |
-| ------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| Logistic Regression | Interpretable baseline             | Coefficients map directly to odds ratios. Fast to train. Stakeholders can understand it without ML background.           |
-| Random Forest       | Robust ensemble                    | Averages hundreds of decision trees. Resistant to overfitting. Handles mixed feature types well.                         |
-| XGBoost             | High-performance gradient boosting | Typically the strongest performer on structured/tabular data. Explicit support for class imbalance.                      |
-| LightGBM            | Alternative gradient boosting      | Faster training than XGBoost on large datasets. Leaf-wise tree growth often finds better splits.                         |
-| Voting Ensemble     | Diversity-based combination        | Soft vote across logistic regression + best tree model + second tree model. Combines linear and non-linear perspectives. |
+| Model               | Role in the Pipeline               | Strength                                                                                                       |
+| ------------------- | ---------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| Logistic Regression | Interpretable baseline             | Coefficients map directly to odds ratios. Fast to train. Stakeholders can understand it without ML background. |
+| Random Forest       | Robust ensemble                    | Averages hundreds of decision trees. Resistant to overfitting. Handles mixed feature types well.               |
+| XGBoost             | High-performance gradient boosting | Strong performer on structured/tabular data. Built-in support for class imbalance via `scale_pos_weight`.      |
+| KNN                 | Distance-based comparison          | No assumptions about the data distribution. Useful as a non-parametric reference point.                        |
 
-### Why Composite Scoring Instead of Just Picking the Highest Accuracy
+### How We Pick the Best Model
 
-Accuracy is misleading on imbalanced data — a model that always predicts "no" gets 88.7% accuracy but catches zero subscribers. We also avoid picking the model with the highest single metric (like profit or AUC) because:
+Accuracy is misleading on imbalanced data — a model that always predicts "no" gets 88.7% accuracy but catches zero subscribers. Instead, we select the model with the **highest net profit** on the test set.
 
-- Profit depends on our cost assumptions. If those assumptions shift, the winner could change.
-- AUC measures overall ranking quality but ignores the specific threshold we use in production.
-- Recall can be trivially maximized by predicting everyone as positive.
+Net profit is calculated from the confusion matrix using real banking economics:
 
-Instead, we combine four metrics into a weighted composite score. The weights reflect what matters most to the business: profit is weighted highest (40%), followed by recall (25%), AUC (20%), and calibration quality (15%). We then verify the selection is stable by testing it under eight different weighting schemes.
+- Each correct prediction (true positive) generates **$200** in loan interest revenue.
+- Each wasted call to a non-subscriber costs **$5**.
+- Each missed subscriber (false negative) costs **$200** in lost opportunity.
+
+This directly answers the business question: _which model makes the bank the most money?_
 
 ---
 
 ## Key Results
 
-### Model Performance (Test Set — No Duration) - _place holder to be updated in future_
+### Model Performance (Test Set — No Duration Feature)
 
-| Model               | Accuracy | Precision | Recall | F1 Score |
-| ------------------- | -------- | --------- | ------ | -------- |
-| **Random Forest**   |          |           |        |          |
-| Logistic Regression |          |           |        |          |
-| XGBoost             |          |           |        |          |
-| LightGBM            |          |           |        |          |
-| Voting Ensemble     |          |           |        |          |
+| Model               | Threshold | Recall | ROC-AUC | Net Profit   |
+| ------------------- | --------- | ------ | ------- | ------------ |
+| **Random Forest** ★ | 0.1088    | 99.86% | 0.8207  | **$108,010** |
+| Logistic Regression | 0.1314    | 99.71% | 0.8121  | $107,655     |
+| XGBoost             | 0.0500    | 98.71% | 0.7983  | $106,415     |
+| KNN                 | 0.0500    | 74.28% | 0.7389  | $52,865      |
 
-_Exact values will be generated when the pipeline runs._
+★ Winner selected by highest net profit. Threshold is optimised per model on the validation set using business cost analysis (FN cost = $200, FP cost = $5).
 
 ---
 
@@ -380,7 +380,7 @@ Our team of four split the work across the major components of the project. Whil
 - **Dataset:** [UCI Machine Learning Repository — Bank Marketing](https://archive.ics.uci.edu/dataset/222/bank+marketing)
 - **Original research:** Moro, S., Cortez, P., and Rita, P. (2014). "A data-driven approach to predict the success of bank telemarketing." Decision Support Systems, 62, 22-31.
 - **Course:** Data Science Institute, University of Toronto — Cohort 8
-- **Tools:** scikit-learn, XGBoost, LightGBM, Optuna, SHAP, Streamlit, Plotly
+- **Tools:** scikit-learn, XGBoost, Optuna, SHAP, Streamlit, Plotly
 
 ---
 

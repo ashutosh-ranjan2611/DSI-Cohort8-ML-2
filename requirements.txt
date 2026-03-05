@@ -53,3 +53,4 @@ scipy==1.17.1
 lightgbm==4.6.0
 et-xmlfile==2.0.0
 openpyxl==3.1.5
+ipykernel==6.25.0
