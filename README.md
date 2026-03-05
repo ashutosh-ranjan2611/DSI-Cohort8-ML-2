@@ -163,62 +163,6 @@ We identified the following risks during our analysis and documented how we addr
 
 ## How We Approached the Analysis
 
-### Pipeline Architecture
-
-The entire analysis will be automated through a single Python script that will execute the following steps in order:
-
-```mermaid
-%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#FFE0F7', 'primaryBorderColor': '#7C3AED', 'primaryTextColor': '#1F2937', 'lineColor': '#4B5563', 'secondaryColor': '#D1FAE5', 'tertiaryColor': '#DBEAFE', 'fontSize': '13px' }}}%%
-flowchart LR
-  %% ======== Data Layer ========
-  UCI([UCI Bank Marketing<br/>Nested ZIP])
-  INGEST[Ingest<br/>Auto-download + extract]
-  CLEAN[Clean<br/>Unknown handling + clipping + de-dup]
-  SPLIT[Stratified Split<br/>70 / 15 / 15]
-  FEAT[Feature Engineering<br/>pdays transform + custom binning]
-
-  %% ======== Modeling Layer ========
-  TUNE[Optuna Tuning<br/>30 trials per model]
-  TRAIN[Train Models<br/>LR · RF · XGB · LGBM · Voting]
-  THRESH[Threshold Optimization<br/>Cost-sensitive: FP $5 / FN $200]
-  SELECT[Composite Selection<br/>Profit 40% + Recall 25% + AUC 20% + Calibration 15%]
-
-  %% ======== Explainability + Serving Layer ========
-  SHAP[SHAP Analysis<br/>TreeExplainer]
-  DASH[Stakeholder Dashboard<br/>Streamlit · 5 tabs]
-
-  %% ======== Artifacts ========
-  subgraph ART[Generated Artifacts]
-    MODELS[(Models<br/>.joblib)]
-    METRICS[(Metrics<br/>comparison.json / recall_analysis.csv)]
-    FIGS[(Figures<br/>18+ plots)]
-  end
-
-  %% ======== Main Flow ========
-  UCI --> INGEST --> CLEAN --> SPLIT --> FEAT --> TUNE --> TRAIN --> THRESH --> SELECT --> SHAP --> DASH
-  TRAIN --> MODELS
-  SELECT --> METRICS
-  SHAP --> FIGS
-
-  %% ======== Styling ========
-  classDef data fill:#DBEAFE,stroke:#2563EB,stroke-width:3px,color:#0F172A;
-  classDef prep fill:#D1FAE5,stroke:#059669,stroke-width:3px,color:#052E16;
-  classDef model fill:#FDE68A,stroke:#D97706,stroke-width:3px,color:#451A03;
-  classDef decision fill:#E9D5FF,stroke:#7C3AED,stroke-width:3px,color:#2E1065;
-  classDef explain fill:#FBCFE8,stroke:#DB2777,stroke-width:3px,color:#500724;
-  classDef serving fill:#CFFAFE,stroke:#0891B2,stroke-width:3px,color:#083344;
-  classDef artifact fill:#FEF3C7,stroke:#F59E0B,stroke-width:3px,color:#78350F;
-
-  class UCI,INGEST data;
-  class CLEAN,SPLIT,FEAT prep;
-  class TUNE,TRAIN,THRESH model;
-  class SELECT decision;
-  class SHAP explain;
-  class DASH serving;
-  class MODELS,METRICS,FIGS artifact;
-
-```
-
 ### Why These Models
 
 We will use four individual models plus one ensemble:
@@ -259,32 +203,131 @@ _Exact values will be generated when the pipeline runs._
 
 ---
 
-## Repository Structure
+## Pipeline Architecture
 
-#### _place holder to be updated in future_
+> **Zoom the diagram:** Use the **+&nbsp;/ &minus;** controls on the right side of the diagram below (VS Code preview), or open [docs/pipeline-flow.html](docs/pipeline-flow.html) in your browser for the full interactive version with mouse-scroll zoom and drag-to-pan.
+
+```mermaid
+%%{init: {"theme": "base", "themeVariables": {"fontSize": "16px", "fontFamily": "Segoe UI, Arial, sans-serif", "primaryTextColor": "#1a1a2e", "lineColor": "#64748B"}} }%%
+flowchart LR
+
+    %% ── Orchestrator ──────────────────────────────────────────────────────────
+    SCR(["🔧 scripts/run_pipeline.py\nEnd-to-End CLI Orchestrator"])
+
+    %% ── Stage 1: Raw Data ─────────────────────────────────────────────────────
+    subgraph DATA["📦  Data"]
+        direction TB
+        RAW["data/raw/\nbank-additional-full.csv\n41,188 rows · 20 features"]
+        PROC["data/processed/\ntrain · val · test\n70% · 15% · 15%"]
+    end
+
+    %% ── Stage 2: Core Pipeline ────────────────────────────────────────────────
+    subgraph SRC["⚙️  src/  —  Core Pipeline"]
+        direction TB
+        ING["ingest.py\nDownload & validate UCI data"]
+        CLN["clean.py\nDe-dup · clip outliers\nimpute unknowns · drop duration"]
+        SPL["split.py\nStratified 70/15/15 split\nSeed 42 · class ratio preserved"]
+        FEA["features.py\nPdaysTransformer\nNonLinearBinningTransformer\nColumnTransformer → ~50 features"]
+        TRN["train.py\nLR · RF · XGBoost · SVM · KNN\n5-Fold CV · Optuna tuning"]
+        EVL["evaluate.py\nAUC · F1 · MCC · Log Loss\nOptimal threshold · Net profit"]
+    end
+
+    %% ── Stage 3: Outputs ──────────────────────────────────────────────────────
+    subgraph OUT["📁  Outputs"]
+        direction TB
+        MDLALL["models/\nlr · rf · xgboost · svm · knn\nmodels_manifest.json"]
+        MDL["models/production/\nBest model pipeline .pkl\nthreshold.json"]
+        RPT["reports/metrics/\ncomparison · SHAP · recall\ntuning CSV/JSON"]
+        FIG["reports/figures/\n17+ PNG charts"]
+    end
+
+    %% ── Stage 4: Application ──────────────────────────────────────────────────
+    APP(["🖥️  app/main.py\nStreamlit Dashboard\n5 stakeholder tabs"])
+
+    %% ── Experiments (side lane) ───────────────────────────────────────────────
+    subgraph EXP["🔬  experiments/  —  Jupyter Notebooks"]
+        direction TB
+        N01["01_eda.ipynb\nExploratory Data Analysis"]
+        N02["02_feature_engineering.ipynb\nPipeline Walkthrough"]
+        N03["03_model_comparison.ipynb\nTrain · Tune · Compare"]
+        N04["04_shap_analysis.ipynb\nModel Explainability"]
+        N05["05_pipeline_visualization.ipynb\nArchitecture Diagrams"]
+    end
+
+    %% ── Main pipeline flow ────────────────────────────────────────────────────
+    RAW --> ING --> CLN --> SPL --> PROC
+    PROC --> FEA --> TRN --> EVL
+    EVL --> MDLALL & MDL & RPT & FIG
+    MDL --> APP
+
+    %% ── Orchestrator ties ─────────────────────────────────────────────────────
+    SCR -.->|orchestrates| ING
+    SCR -.->|orchestrates| CLN
+    SCR -.->|orchestrates| SPL
+    SCR -.->|orchestrates| FEA
+    SCR -.->|orchestrates| TRN
+    SCR -.->|orchestrates| EVL
+
+    %% ── Notebook ties ─────────────────────────────────────────────────────────
+    N01 -. reads .-> RAW
+    N03 -. produces .-> MDLALL
+    N03 -. produces .-> MDL
+    N04 -. reads .-> MDL
+
+    %% ── Styles ────────────────────────────────────────────────────────────────
+    style DATA fill:#EFF6FF,color:#1E3A8A,stroke:#93C5FD,stroke-width:2px
+    style SRC  fill:#F0FDF4,color:#14532D,stroke:#86EFAC,stroke-width:2px
+    style OUT  fill:#F5F3FF,color:#3B0764,stroke:#C4B5FD,stroke-width:2px
+    style EXP  fill:#FFFBEB,color:#78350F,stroke:#FCD34D,stroke-width:2px
+
+    classDef dataNode  fill:#BFDBFE,color:#1E3A8A,stroke:#3B82F6,stroke-width:1.5px
+    classDef srcNode   fill:#BBF7D0,color:#14532D,stroke:#22C55E,stroke-width:1.5px
+    classDef outNode   fill:#DDD6FE,color:#3B0764,stroke:#8B5CF6,stroke-width:1.5px
+    classDef expNode   fill:#FDE68A,color:#78350F,stroke:#F59E0B,stroke-width:1.5px
+    classDef appNode   fill:#FECDD3,color:#881337,stroke:#F43F5E,stroke-width:2px
+    classDef scrNode   fill:#E2E8F0,color:#1E293B,stroke:#64748B,stroke-width:2px
+
+    class RAW,PROC dataNode
+    class ING,CLN,SPL,FEA,TRN,EVL srcNode
+    class MDLALL,MDL,RPT,FIG outNode
+    class N01,N02,N03,N04,N05 expNode
+    class APP appNode
+    class SCR scrNode
+```
+
+### Folder Reference
 
 ```
 DSI-Cohort8-ML-2/
 |
-|-- app/
+|-- app/                   Streamlit App to test and visualize the final model in real time
 |-- data/
-|   |-- processed/
-|   |-- raw/
-|   |-- reference/
+|   |-- raw/               Source CSV from UCI (auto-downloaded)
+|   |-- processed/         Train / val / test splits (Parquet)
+|   |-- reference/         Training-time snapshot for drift detection
 |
-|-- experiments/
+|-- docs/                  Interactive pipeline diagram (HTML)
+|-- experiments/           Jupyter notebooks (EDA -> features -> models -> SHAP -> viz)
+|-- mlruns/                MLflow experiment tracking artifacts
 |-- models/
+|   |-- logistic_regression.pkl   All compared models (pickle)
+|   |-- random_forest.pkl
+|   |-- xgboost.pkl
+|   |-- models_manifest.json      Model listing + selection rationale
+|   |-- production/
+|       |-- xgboost.pkl           Best model (Optuna-tuned pipeline)
+|       |-- xgboost_booster.bin   Native XGBoost booster
+|       |-- threshold.json        Cost-optimal threshold + test metrics
 |-- reports/
-|   |-- figures/
-|   |-- metrics/
+|   |-- figures/           All generated plots and charts
+|   |-- metrics/           CSV / JSON metric outputs
 |
-|-- scripts/
-|-- src/
-|-- tests/
+|-- scripts/               run_pipeline.py  (end-to-end CLI runner)
+|-- src/                   Core Python modules (ingest clean split features train evaluate)
+|-- tests/                 pytest unit tests
 |
-|-- requirements.txt
 |-- pyproject.toml
-|-- .gitignore
+|-- requirements.txt
 |-- README.md
 ```
 
@@ -292,26 +335,7 @@ DSI-Cohort8-ML-2/
 
 ## Local Setup
 
-### Prerequisites
-
-- Python 3.12
-- uv
-
-### Setup and Run
-
-```bash
-# 1. Clone the repository
-git clone https://github.com/ashutosh-ranjan2611/DSI-Cohort8-ML-2.git
-cd DSI-Cohort8-ML-2
-
-# 2. Create a virtual environment
-uv venv .venv --python 3.12
-source .venv/bin/activate          # macOS / Linux
-.venv\Scripts\activate             # Windows
-
-# 3. Install dependencies
-uv sync --active
-```
+> Full setup instructions, pipeline execution, and dashboard launch: see **[docs/setup.md](docs/setup.md)**
 
 ---
 

@@ -1,0 +1,412 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pipeline Architecture — Call Smarter: DSI Cohort 8 ML Team 2</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
+      background: #F8FAFC;
+      color: #1E293B;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    header {
+      padding: 14px 28px;
+      background: #FFFFFF;
+      border-bottom: 2px solid #E2E8F0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    }
+
+    header h1 {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #1E293B;
+      letter-spacing: 0.01em;
+    }
+
+    header h1 span { color: #3B82F6; }
+
+    .legend {
+      display: flex;
+      gap: 14px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: #475569;
+    }
+
+    .legend-dot {
+      width: 14px;
+      height: 14px;
+      border-radius: 4px;
+      flex-shrink: 0;
+      border: 1.5px solid rgba(0,0,0,0.12);
+    }
+
+    .hint {
+      font-size: 0.8rem;
+      font-weight: 500;
+      color: #64748B;
+      padding: 7px 28px;
+      background: #F1F5F9;
+      border-bottom: 1px solid #E2E8F0;
+      flex-shrink: 0;
+      text-align: center;
+    }
+
+    .hint kbd {
+      background: #E2E8F0;
+      border: 1px solid #CBD5E1;
+      border-radius: 4px;
+      padding: 1px 6px;
+      font-size: 0.75rem;
+      font-family: inherit;
+      color: #334155;
+    }
+
+    #diagram-container {
+      flex: 1;
+      overflow: hidden;
+      position: relative;
+      cursor: grab;
+      background: #F8FAFC;
+    }
+
+    #diagram-container:active { cursor: grabbing; }
+
+    #mermaid-wrapper {
+      width: 100%;
+      height: 100%;
+    }
+
+    #mermaid-wrapper svg {
+      width: 100% !important;
+      height: 100% !important;
+      display: block;
+    }
+
+    .controls {
+      position: absolute;
+      bottom: 28px;
+      right: 28px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      z-index: 100;
+    }
+
+    .controls button {
+      width: 44px;
+      height: 44px;
+      border: 1.5px solid #CBD5E1;
+      background: #FFFFFF;
+      color: #334155;
+      font-size: 1.3rem;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.15s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.10);
+    }
+
+    .controls button:hover {
+      background: #EFF6FF;
+      border-color: #3B82F6;
+      color: #1D4ED8;
+      box-shadow: 0 4px 12px rgba(59,130,246,0.18);
+    }
+
+    .controls button.reset-btn {
+      font-size: 0.65rem;
+      letter-spacing: 0.06em;
+      font-weight: 700;
+    }
+
+    #loading {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: #F8FAFC;
+      color: #64748B;
+      font-size: 1rem;
+      font-weight: 500;
+      z-index: 200;
+      gap: 14px;
+    }
+
+    .spinner {
+      width: 36px;
+      height: 36px;
+      border: 3px solid #E2E8F0;
+      border-top: 3px solid #3B82F6;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>Call Smarter &mdash; <span>Pipeline Architecture</span></h1>
+    <div class="legend">
+      <div class="legend-item">
+        <div class="legend-dot" style="background:#BFDBFE;border-color:#3B82F6;"></div>Data
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="background:#BBF7D0;border-color:#22C55E;"></div>src/ Pipeline
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="background:#FDE68A;border-color:#F59E0B;"></div>Notebooks
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="background:#DDD6FE;border-color:#8B5CF6;"></div>Outputs
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="background:#FECDD3;border-color:#F43F5E;"></div>Dashboard
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="background:#E2E8F0;border-color:#64748B;"></div>Orchestrator
+      </div>
+    </div>
+  </header>
+
+  <div class="hint">
+    <kbd>Scroll</kbd> to zoom &nbsp;&nbsp;
+    <kbd>Drag</kbd> to pan &nbsp;&nbsp;
+    <kbd>Double-click</kbd> to zoom in &nbsp;&nbsp;
+    Use <kbd>+</kbd> / <kbd>-</kbd> buttons &nbsp;&nbsp;
+    <kbd>RESET</kbd> to fit view
+  </div>
+
+  <div id="diagram-container">
+    <div id="loading">
+      <div class="spinner"></div>
+      Rendering pipeline diagram&hellip;
+    </div>
+
+    <div id="mermaid-wrapper" class="mermaid">
+%%{init: {
+  "theme": "base",
+  "themeVariables": {
+    "fontSize": "17px",
+    "fontFamily": "Segoe UI, system-ui, Arial, sans-serif",
+    "primaryColor": "#BFDBFE",
+    "primaryTextColor": "#1E3A8A",
+    "primaryBorderColor": "#3B82F6",
+    "lineColor": "#64748B",
+    "secondaryColor": "#F0FDF4",
+    "tertiaryColor": "#FFFBEB",
+    "background": "#F8FAFC",
+    "titleColor": "#1E293B",
+    "edgeLabelBackground": "#F1F5F9",
+    "clusterBkg": "#EFF6FF",
+    "clusterBorder": "#93C5FD"
+  }
+} }%%
+flowchart TD
+    subgraph DATA["  Data Layer  "]
+        RAW["data/raw/\nbank-additional-full.csv\n41,188 rows  21 columns"]
+        PROC["data/processed/\ntrain / val / test  Parquet"]
+        REF["data/reference/\ndrift detection baseline"]
+    end
+
+    subgraph SRC["  src/  Core ML Pipeline  "]
+        ING["ingest.py\nDownload and Validate UCI ZIP"]
+        CLN["clean.py\nDedup  Clip Outliers  Impute Unknowns\nDrop duration in production"]
+        SPL["split.py\n70 / 15 / 15 Stratified Split  Seed 42"]
+        FEA["features.py\nPdaysTransformer\nNonLinearBinningTransformer\nColumnTransformer"]
+        TRN["train.py\nLR  RF  XGBoost  LightGBM\nOptuna Hyperparameter Tuning"]
+        EVL["evaluate.py\nMetrics  Optimal Threshold\nBusiness Cost Analysis"]
+    end
+
+    subgraph EXP["  experiments/  Jupyter Notebooks  "]
+        N01["01_eda.ipynb\nExploratory Data Analysis"]
+        N02["02_feature_engineering.ipynb\nStep-by-Step Pipeline Walkthrough"]
+        N03["03_model_comparison.ipynb\nTrain All Models and Compare"]
+        N04["04_shap_analysis.ipynb\nSHAP Global and Local Explainability"]
+        N05["05_pipeline_visualization.ipynb\nArchitecture and Flow Diagrams"]
+    end
+
+    subgraph OUT["  Outputs  "]
+        MDL["models/production/\nxgboost.joblib\nbest composite-scored model"]
+        THR["models/threshold.json\ncost-optimal decision threshold"]
+        RPT["reports/metrics/\ncomparison  shap  recall  tuning"]
+        FIG["reports/figures/\nall matplotlib and seaborn plots"]
+    end
+
+    SCR["scripts/run_pipeline.py\nSingle-command End-to-End Orchestrator\npython scripts/run_pipeline.py"]
+    APP["app/main.py\nStreamlit Dashboard\n5 Stakeholder Tabs\nstreamlit run app/main.py"]
+
+    RAW --> ING
+    ING --> CLN
+    CLN --> SPL
+    SPL --> PROC
+    SPL --> REF
+    PROC --> FEA
+    FEA --> TRN
+    TRN --> EVL
+    EVL --> MDL
+    EVL --> THR
+    EVL --> RPT
+    EVL --> FIG
+    MDL --> APP
+    THR --> APP
+    FIG --> APP
+
+    SCR -. orchestrates .-> ING
+    SCR -. orchestrates .-> CLN
+    SCR -. orchestrates .-> SPL
+    SCR -. orchestrates .-> FEA
+    SCR -. orchestrates .-> TRN
+    SCR -. orchestrates .-> EVL
+
+    N01 -. uses .-> RAW
+    N03 -. produces .-> MDL
+    N04 -. uses .-> MDL
+
+    style DATA fill:#EFF6FF,color:#1E3A8A,stroke:#93C5FD,stroke-width:2px
+    style SRC  fill:#F0FDF4,color:#14532D,stroke:#86EFAC,stroke-width:2px
+    style EXP  fill:#FFFBEB,color:#78350F,stroke:#FCD34D,stroke-width:2px
+    style OUT  fill:#F5F3FF,color:#3B0764,stroke:#C4B5FD,stroke-width:2px
+
+    classDef dataNode fill:#BFDBFE,color:#1E3A8A,stroke:#3B82F6,stroke-width:2px,font-weight:bold
+    classDef srcNode  fill:#BBF7D0,color:#14532D,stroke:#22C55E,stroke-width:2px,font-weight:bold
+    classDef expNode  fill:#FDE68A,color:#78350F,stroke:#F59E0B,stroke-width:2px,font-weight:bold
+    classDef outNode  fill:#DDD6FE,color:#3B0764,stroke:#8B5CF6,stroke-width:2px,font-weight:bold
+    classDef appNode  fill:#FECDD3,color:#881337,stroke:#F43F5E,stroke-width:2.5px,font-weight:bold
+    classDef scrNode  fill:#E2E8F0,color:#1E293B,stroke:#64748B,stroke-width:2.5px,font-weight:bold
+
+    class RAW,PROC,REF dataNode
+    class ING,CLN,SPL,FEA,TRN,EVL srcNode
+    class N01,N02,N03,N04,N05 expNode
+    class MDL,THR,RPT,FIG outNode
+    class APP appNode
+    class SCR scrNode
+    </div>
+
+    <div class="controls">
+      <button id="btn-zoom-in"  title="Zoom In">+</button>
+      <button id="btn-zoom-out" title="Zoom Out">&#x2212;</button>
+      <button id="btn-reset" class="reset-btn" title="Fit to View">RESET</button>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/svg-pan-zoom@3.6.2/dist/svg-pan-zoom.min.js"></script>
+
+  <script>
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: 'base',
+      flowchart: {
+        curve: 'basis',
+        useMaxWidth: false,
+        htmlLabels: true,
+        padding: 24,
+        nodeSpacing: 50,
+        rankSpacing: 60,
+      },
+      themeVariables: {
+        fontSize: '17px',
+        fontFamily: 'Segoe UI, system-ui, Arial, sans-serif',
+        primaryColor: '#BFDBFE',
+        primaryTextColor: '#1E3A8A',
+        primaryBorderColor: '#3B82F6',
+        lineColor: '#64748B',
+        background: '#F8FAFC',
+        edgeLabelBackground: '#F1F5F9',
+        clusterBkg: '#EFF6FF',
+        clusterBorder: '#93C5FD',
+      },
+      securityLevel: 'loose',
+    });
+
+    (async () => {
+      const el      = document.getElementById('mermaid-wrapper');
+      const loading = document.getElementById('loading');
+
+      try {
+        const { svg } = await mermaid.render('pipeline-svg', el.textContent.trim());
+        el.innerHTML = svg;
+
+        const svgEl = el.querySelector('svg');
+        svgEl.removeAttribute('width');
+        svgEl.removeAttribute('height');
+        svgEl.style.width  = '100%';
+        svgEl.style.height = '100%';
+
+        // Strengthen text rendering
+        svgEl.querySelectorAll('.nodeLabel, .label, text, foreignObject').forEach(t => {
+          t.style.fontWeight = '600';
+        });
+        svgEl.querySelectorAll('foreignObject div, foreignObject p, foreignObject span').forEach(t => {
+          t.style.fontWeight = '600';
+          t.style.fontSize   = '15px';
+          t.style.lineHeight = '1.5';
+        });
+
+        const panZoom = svgPanZoom(svgEl, {
+          zoomEnabled:               true,
+          panEnabled:                true,
+          controlIconsEnabled:       false,
+          fit:                       true,
+          center:                    true,
+          minZoom:                   0.10,
+          maxZoom:                   14,
+          zoomScaleSensitivity:      0.22,
+          mouseWheelZoomEnabled:     true,
+          dblClickZoomEnabled:       true,
+          preventMouseEventsDefault: true,
+        });
+
+        document.getElementById('btn-zoom-in').addEventListener('click',  () => panZoom.zoomIn());
+        document.getElementById('btn-zoom-out').addEventListener('click', () => panZoom.zoomOut());
+        document.getElementById('btn-reset').addEventListener('click', () => {
+          panZoom.resetZoom();
+          panZoom.resetPan();
+          panZoom.fit();
+          panZoom.center();
+        });
+
+        window.addEventListener('resize', () => {
+          panZoom.resize();
+          panZoom.fit();
+          panZoom.center();
+        });
+
+      } catch (err) {
+        loading.innerHTML = '<div style="color:#EF4444;font-weight:600;">Error: ' + err.message + '</div>';
+        return;
+      }
+
+      loading.remove();
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+{
+  "compared_models": [
+    "Logistic Regression",
+    "Random Forest",
+    "XGBoost",
+    "SVM",
+    "KNN"
+  ],
+  "best_model": "xgboost",
+  "best_model_file": "production/xgboost.pkl",
+  "comparison_metrics_file": "../reports/metrics/comparison.json",
+  "selection_criterion": "composite: ROC-AUC + Recall + Business Cost"
+}
