@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pipeline Flow — Call Smarter: DSI Cohort 8 ML Team 2</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #0d1117;
+      color: #c9d1d9;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    header {
+      padding: 14px 24px;
+      background: #161b22;
+      border-bottom: 1px solid #30363d;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+
+    header h1 {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #e6edf3;
+      letter-spacing: 0.02em;
+    }
+
+    .legend {
+      display: flex;
+      gap: 16px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: #8b949e;
+    }
+
+    .legend-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 3px;
+      flex-shrink: 0;
+    }
+
+    .hint {
+      font-size: 0.78rem;
+      color: #6e7681;
+      padding: 6px 24px;
+      background: #0d1117;
+      border-bottom: 1px solid #21262d;
+      flex-shrink: 0;
+      text-align: center;
+    }
+
+    #diagram-container {
+      flex: 1;
+      overflow: hidden;
+      position: relative;
+      cursor: grab;
+      background: #0d1117;
+    }
+
+    #diagram-container:active { cursor: grabbing; }
+
+    #mermaid-div {
+      width: 100%;
+      height: 100%;
+    }
+
+    #mermaid-div svg {
+      width: 100% !important;
+      height: 100% !important;
+      display: block;
+    }
+
+    .controls {
+      position: absolute;
+      bottom: 24px;
+      right: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      z-index: 100;
+    }
+
+    .controls button {
+      width: 38px;
+      height: 38px;
+      border: 1px solid #30363d;
+      background: #161b22;
+      color: #e6edf3;
+      font-size: 1.2rem;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .controls button:hover {
+      background: #21262d;
+      border-color: #58a6ff;
+    }
+
+    .controls button[title="Reset View"] {
+      font-size: 0.7rem;
+      letter-spacing: 0.05em;
+    }
+
+    #loading {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #0d1117;
+      color: #8b949e;
+      font-size: 0.9rem;
+      z-index: 200;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>Call Smarter — End-to-End ML Pipeline Flow</h1>
+    <div class="legend">
+      <div class="legend-item">
+        <div class="legend-dot" style="background:#1E88E5;"></div>
+        <span>Data</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="background:#43A047;"></div>
+        <span>src/ Pipeline</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="background:#FB8C00;"></div>
+        <span>Notebooks</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="background:#8E24AA;"></div>
+        <span>Outputs</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="background:#D81B60;"></div>
+        <span>Dashboard</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="background:#546E7A;"></div>
+        <span>Orchestrator</span>
+      </div>
+    </div>
+  </header>
+
+  <div class="hint">
+    Scroll to zoom &nbsp;|&nbsp; Drag to pan &nbsp;|&nbsp; Double-click to zoom in &nbsp;|&nbsp; Use &nbsp;<strong>+</strong> / <strong>-</strong> buttons below
+  </div>
+
+  <div id="diagram-container">
+    <div id="loading">Rendering diagram...</div>
+
+    <div id="mermaid-div" class="mermaid">
+flowchart TD
+    subgraph DATA["Data Layer"]
+        RAW["data/raw/\nbank-additional-full.csv\n41,188 rows - 21 columns"]
+        PROC["data/processed/\ntrain / val / test  Parquet"]
+        REF["data/reference/\ndrift detection baseline"]
+    end
+
+    subgraph SRC["src/  —  Core ML Pipeline"]
+        ING["ingest.py\nDownload and Validate UCI ZIP"]
+        CLN["clean.py\nDedup - Clip Outliers - Impute Unknowns\nDrop duration in production"]
+        SPL["split.py\n70 / 15 / 15 Stratified Split\nSeed 42"]
+        FEA["features.py\nPdaysTransformer\nNonLinearBinningTransformer\nColumnTransformer"]
+        TRN["train.py\nLR - RF - XGBoost - LightGBM\nOptuna Hyperparameter Tuning"]
+        EVL["evaluate.py\nMetrics - Optimal Threshold\nBusiness Cost Analysis"]
+    end
+
+    subgraph EXP["experiments/  —  Jupyter Notebooks"]
+        N01["01_eda.ipynb\nExploratory Data Analysis"]
+        N02["02_feature_engineering.ipynb\nStep-by-Step Pipeline Walkthrough"]
+        N03["03_model_comparison.ipynb\nTrain All Models and Compare"]
+        N04["04_shap_analysis.ipynb\nSHAP Global and Local Explainability"]
+        N05["05_pipeline_visualization.ipynb\nArchitecture and Flow Diagrams"]
+    end
+
+    subgraph OUT["Outputs"]
+        MDL["models/production/\nxgboost.joblib\nbest composite-scored model"]
+        THR["models/threshold.json\ncost-optimal decision threshold"]
+        RPT["reports/metrics/\ncomparison - shap - recall\ntuning - feature sweep"]
+        FIG["reports/figures/\nall matplotlib and seaborn plots"]
+    end
+
+    SCR["scripts/run_pipeline.py\nSingle-command End-to-End Orchestrator\npython scripts/run_pipeline.py"]
+    APP["app/main.py\nStreamlit Dashboard\n5 Stakeholder Tabs\nstreamlit run app/main.py"]
+
+    RAW --> ING
+    ING --> CLN
+    CLN --> SPL
+    SPL --> PROC
+    SPL --> REF
+    PROC --> FEA
+    FEA --> TRN
+    TRN --> EVL
+    EVL --> MDL
+    EVL --> THR
+    EVL --> RPT
+    EVL --> FIG
+    MDL --> APP
+    THR --> APP
+    FIG --> APP
+
+    SCR -. orchestrates .-> ING
+    SCR -. orchestrates .-> CLN
+    SCR -. orchestrates .-> SPL
+    SCR -. orchestrates .-> FEA
+    SCR -. orchestrates .-> TRN
+    SCR -. orchestrates .-> EVL
+
+    N01 -. uses .-> RAW
+    N03 -. produces .-> MDL
+    N04 -. uses .-> MDL
+
+    style DATA fill:#0D47A1,color:#E3F2FD,stroke:#1565C0
+    style SRC  fill:#1B5E20,color:#E8F5E9,stroke:#2E7D32
+    style EXP  fill:#BF360C,color:#FBE9E7,stroke:#E64A19
+    style OUT  fill:#4A148C,color:#F3E5F5,stroke:#6A1B9A
+
+    classDef dataNode fill:#1E88E5,color:#fff,stroke:#1565C0,font-weight:bold
+    classDef srcNode  fill:#2E7D32,color:#fff,stroke:#1B5E20
+    classDef expNode  fill:#E64A19,color:#fff,stroke:#BF360C
+    classDef outNode  fill:#7B1FA2,color:#fff,stroke:#4A148C
+    classDef appNode  fill:#C62828,color:#fff,stroke:#B71C1C,font-weight:bold
+    classDef scrNode  fill:#37474F,color:#fff,stroke:#263238,font-weight:bold
+
+    class RAW,PROC,REF dataNode
+    class ING,CLN,SPL,FEA,TRN,EVL srcNode
+    class N01,N02,N03,N04,N05 expNode
+    class MDL,THR,RPT,FIG outNode
+    class APP appNode
+    class SCR scrNode
+    </div>
+
+    <div class="controls">
+      <button id="btn-zoom-in"  title="Zoom In">+</button>
+      <button id="btn-zoom-out" title="Zoom Out">&#x2212;</button>
+      <button id="btn-reset"    title="Reset View">RESET</button>
+    </div>
+  </div>
+
+  <!-- Mermaid JS -->
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+  <!-- SVG Pan-Zoom -->
+  <script src="https://cdn.jsdelivr.net/npm/svg-pan-zoom@3.6.2/dist/svg-pan-zoom.min.js"></script>
+
+  <script>
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: 'dark',
+      flowchart: {
+        curve: 'basis',
+        useMaxWidth: false,
+        htmlLabels: true,
+        padding: 20,
+      },
+      securityLevel: 'loose',
+      fontSize: 14,
+    });
+
+    (async () => {
+      const el       = document.getElementById('mermaid-div');
+      const loading  = document.getElementById('loading');
+
+      try {
+        const { svg } = await mermaid.render('pipeline-svg', el.textContent.trim());
+        el.innerHTML   = svg;
+
+        const svgEl = el.querySelector('svg');
+        svgEl.removeAttribute('width');
+        svgEl.removeAttribute('height');
+        svgEl.style.width  = '100%';
+        svgEl.style.height = '100%';
+
+        // Initialise pan-zoom
+        const panZoom = svgPanZoom(svgEl, {
+          zoomEnabled:             true,
+          panEnabled:              true,
+          controlIconsEnabled:     false,
+          fit:                     true,
+          center:                  true,
+          minZoom:                 0.15,
+          maxZoom:                 12,
+          zoomScaleSensitivity:    0.25,
+          mouseWheelZoomEnabled:   true,
+          dblClickZoomEnabled:     true,
+          preventMouseEventsDefault: true,
+        });
+
+        document.getElementById('btn-zoom-in').addEventListener('click',  () => panZoom.zoomIn());
+        document.getElementById('btn-zoom-out').addEventListener('click', () => panZoom.zoomOut());
+        document.getElementById('btn-reset').addEventListener('click', () => {
+          panZoom.resetZoom();
+          panZoom.resetPan();
+          panZoom.fit();
+          panZoom.center();
+        });
+
+        window.addEventListener('resize', () => {
+          panZoom.resize();
+          panZoom.fit();
+          panZoom.center();
+        });
+
+      } catch (err) {
+        loading.textContent = 'Error rendering diagram: ' + err.message;
+        loading.style.color = '#f85149';
+        return;
+      }
+
+      loading.remove();
+    })();
+  </script>
+</body>
+</html>

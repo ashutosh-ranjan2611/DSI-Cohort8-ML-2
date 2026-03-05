@@ -261,30 +261,117 @@ _Exact values will be generated when the pipeline runs._
 
 ## Repository Structure
 
-#### _place holder to be updated in future_
+> **Interactive view (zoom + pan):** open [docs/pipeline-flow.html](docs/pipeline-flow.html) in your browser for a scrollable, zoomable version of the diagram below.
+
+```mermaid
+flowchart TD
+    subgraph DATA["Data Layer"]
+        RAW["data/raw/\nbank-additional-full.csv\n41,188 rows - 21 columns"]
+        PROC["data/processed/\ntrain / val / test  Parquet"]
+        REF["data/reference/\ndrift detection baseline"]
+    end
+
+    subgraph SRC["src/  —  Core ML Pipeline"]
+        ING["ingest.py\nDownload and Validate UCI ZIP"]
+        CLN["clean.py\nDedup - Clip Outliers - Impure Unknowns\nDrop duration in production"]
+        SPL["split.py\n70 / 15 / 15 Stratified Split  Seed 42"]
+        FEA["features.py\nPdaysTransformer\nNonLinearBinningTransformer\nColumnTransformer"]
+        TRN["train.py\nLR - RF - XGBoost - LightGBM\nOptuna Hyperparameter Tuning"]
+        EVL["evaluate.py\nMetrics - Optimal Threshold\nBusiness Cost Analysis"]
+    end
+
+    subgraph EXP["experiments/  —  Jupyter Notebooks"]
+        N01["01_eda.ipynb\nExploratory Data Analysis"]
+        N02["02_feature_engineering.ipynb\nStep-by-Step Pipeline Walkthrough"]
+        N03["03_model_comparison.ipynb\nTrain All Models and Compare"]
+        N04["04_shap_analysis.ipynb\nSHAP Global and Local Explainability"]
+        N05["05_pipeline_visualization.ipynb\nArchitecture and Flow Diagrams"]
+    end
+
+    subgraph OUT["Outputs"]
+        MDL["models/production/\nxgboost.joblib"]
+        THR["models/threshold.json\ncost-optimal decision threshold"]
+        RPT["reports/metrics/\ncomparison - shap - recall - tuning"]
+        FIG["reports/figures/\nall plots and charts"]
+    end
+
+    SCR["scripts/run_pipeline.py\nSingle-command End-to-End Orchestrator"]
+    APP["app/main.py\nStreamlit Dashboard\n5 Stakeholder Tabs"]
+
+    RAW --> ING
+    ING --> CLN
+    CLN --> SPL
+    SPL --> PROC
+    SPL --> REF
+    PROC --> FEA
+    FEA --> TRN
+    TRN --> EVL
+    EVL --> MDL
+    EVL --> THR
+    EVL --> RPT
+    EVL --> FIG
+    MDL --> APP
+    THR --> APP
+    FIG --> APP
+
+    SCR -. orchestrates .-> ING
+    SCR -. orchestrates .-> CLN
+    SCR -. orchestrates .-> SPL
+    SCR -. orchestrates .-> FEA
+    SCR -. orchestrates .-> TRN
+    SCR -. orchestrates .-> EVL
+
+    N01 -. uses .-> RAW
+    N03 -. produces .-> MDL
+    N04 -. uses .-> MDL
+
+    style DATA fill:#0D47A1,color:#E3F2FD,stroke:#1565C0
+    style SRC  fill:#1B5E20,color:#E8F5E9,stroke:#2E7D32
+    style EXP  fill:#BF360C,color:#FBE9E7,stroke:#E64A19
+    style OUT  fill:#4A148C,color:#F3E5F5,stroke:#6A1B9A
+
+    classDef dataNode fill:#1E88E5,color:#fff,stroke:#1565C0,font-weight:bold
+    classDef srcNode  fill:#2E7D32,color:#fff,stroke:#1B5E20
+    classDef expNode  fill:#E64A19,color:#fff,stroke:#BF360C
+    classDef outNode  fill:#7B1FA2,color:#fff,stroke:#4A148C
+    classDef appNode  fill:#C62828,color:#fff,stroke:#B71C1C,font-weight:bold
+    classDef scrNode  fill:#37474F,color:#fff,stroke:#263238,font-weight:bold
+
+    class RAW,PROC,REF dataNode
+    class ING,CLN,SPL,FEA,TRN,EVL srcNode
+    class N01,N02,N03,N04,N05 expNode
+    class MDL,THR,RPT,FIG outNode
+    class APP appNode
+    class SCR scrNode
+```
+
+### Folder Reference
 
 ```
 DSI-Cohort8-ML-2/
 |
-|-- app/
+|-- app/                   Streamlit dashboard (5 stakeholder tabs)
 |-- data/
-|   |-- processed/
-|   |-- raw/
-|   |-- reference/
+|   |-- raw/               Source CSV from UCI (auto-downloaded)
+|   |-- processed/         Train / val / test splits (Parquet)
+|   |-- reference/         Training-time snapshot for drift detection
 |
-|-- experiments/
+|-- docs/                  Interactive pipeline diagram (HTML)
+|-- experiments/           Jupyter notebooks (EDA -> features -> models -> SHAP -> viz)
+|-- mlruns/                MLflow experiment tracking artifacts
 |-- models/
+|   |-- production/        Best saved model (xgboost.joblib)
+|   |-- threshold.json     Cost-optimal classification threshold
 |-- reports/
-|   |-- figures/
-|   |-- metrics/
+|   |-- figures/           All generated plots and charts
+|   |-- metrics/           CSV / JSON metric outputs
 |
-|-- scripts/
-|-- src/
-|-- tests/
+|-- scripts/               run_pipeline.py  (end-to-end CLI runner)
+|-- src/                   Core Python modules (ingest clean split features train evaluate)
+|-- tests/                 pytest unit tests
 |
-|-- requirements.txt
 |-- pyproject.toml
-|-- .gitignore
+|-- requirements.txt
 |-- README.md
 ```
 

@@ -20,7 +20,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-import requests, joblib
+import pickle, requests
 import numpy as np
 import pandas as pd
 import streamlit as st
@@ -237,7 +237,7 @@ def load_best_model():
 
     name = meta.get("model", "")
     threshold = meta.get("threshold", 0.30)
-    path = MOD_DIR / f"{name}.joblib"
+    path = MOD_DIR / f"{name}.pkl"
 
     if not path.exists():
         # Fallback: find any available model
@@ -248,7 +248,7 @@ def load_best_model():
             "logistic_regression",
             "voting_ensemble",
         ]:
-            p = MOD_DIR / f"{fallback}.joblib"
+            p = MOD_DIR / f"{fallback}.pkl"
             if p.exists():
                 name, path = fallback, p
                 break
@@ -256,7 +256,8 @@ def load_best_model():
     if not path.exists():
         return None, None, 0.30, {}
 
-    model = joblib.load(path)
+    with open(path, "rb") as f:
+        model = pickle.load(f)
     return model, name, threshold, meta
 
 
@@ -389,7 +390,7 @@ if comp_df is not None:
 st.markdown(
     f"""
 <div class="hero">
-    <h1>🏦 Bank Marketing Intelligence</h1>
+    <h1>Bank Marketing Intelligence</h1>
     <p>
         <span class="badge">Model: {model_name.replace('_', ' ').title()}</span>
         <span class="badge">Threshold: {threshold:.1%}</span>
@@ -406,11 +407,11 @@ st.markdown(
 # ═══════════════════════════════════════════════════════════════════════════════
 tab_exec, tab_cc, tab_ds, tab_pred, tab_batch = st.tabs(
     [
-        "📊 Executive Summary",
-        "📞 Call Centre Operations",
-        "🔬 Model & Data Science",
-        "🎯 Predict Client",
-        "📁 Batch Predict",
+        "Executive Summary",
+        "Call Centre Operations",
+        "Model & Data Science",
+        "Predict Client",
+        "Batch Predict",
     ]
 )
 
@@ -439,7 +440,7 @@ with tab_exec:
 
     # ── Banking Economics ────────────────────────────────────────────────
     st.markdown(
-        '<div class="section-header">💰 Banking Economics — Why This Matters</div>',
+        '<div class="section-header">Banking Economics — Why This Matters</div>',
         unsafe_allow_html=True,
     )
 
@@ -467,8 +468,8 @@ with tab_exec:
 <div class="glass-card">
     <h4>Cost of Prediction Errors</h4>
     <table style="width:100%; font-size:0.9rem; border-collapse: collapse;">
-        <tr><td style="padding:6px 0;">❌ False Positive (wasted call)</td><td style="text-align:right;font-weight:700;">$5</td></tr>
-        <tr><td style="padding:6px 0;">🚨 False Negative (missed subscriber)</td><td style="text-align:right;font-weight:700;color:#dc2626;">$200</td></tr>
+        <tr><td style="padding:6px 0;">False Positive (wasted call)</td><td style="text-align:right;font-weight:700;">$5</td></tr>
+        <tr><td style="padding:6px 0;">False Negative (missed subscriber)</td><td style="text-align:right;font-weight:700;color:#dc2626;">$200</td></tr>
         <tr style="border-top:2px solid #dc2626;"><td style="padding:6px 0;"><b>Cost ratio: FN/FP</b></td><td style="text-align:right;font-weight:800;color:#dc2626;">40:1</td></tr>
     </table>
     <div class="sub" style="margin-top:10px;">Missing a subscriber is <b>40× costlier</b> than a wasted call.<br>Our model is tuned to minimize missed opportunities.</div>
@@ -478,7 +479,7 @@ with tab_exec:
 
     # ── Strategy Comparison ──────────────────────────────────────────────
     st.markdown(
-        '<div class="section-header">📊 Strategy Comparison — Before vs After ML</div>',
+        '<div class="section-header">Strategy Comparison — Before vs After ML</div>',
         unsafe_allow_html=True,
     )
 
@@ -521,7 +522,7 @@ with tab_exec:
 
     # ── Model Selection Transparency ─────────────────────────────────────
     st.markdown(
-        '<div class="section-header">🧠 Why This Model Was Selected</div>',
+        '<div class="section-header">Why This Model Was Selected</div>',
         unsafe_allow_html=True,
     )
 
@@ -532,10 +533,10 @@ with tab_exec:
     <div class="sub">Single metrics are fragile. We score across 4 dimensions:</div>
     <table style="width:100%; font-size:0.9rem; margin-top:10px; border-collapse: collapse;">
         <tr style="background:#f1f5f9;"><th style="padding:8px;text-align:left;">Criterion</th><th style="text-align:center;">Weight</th><th style="text-align:left;">Rationale</th></tr>
-        <tr><td style="padding:8px;">💰 Net Profit</td><td style="text-align:center;font-weight:700;">40%</td><td>Business outcome — the whole point</td></tr>
-        <tr><td style="padding:8px;">🎯 Recall</td><td style="text-align:center;font-weight:700;">25%</td><td>FN costs 40× more — don't miss subscribers</td></tr>
-        <tr><td style="padding:8px;">📈 AUC-ROC</td><td style="text-align:center;font-weight:700;">20%</td><td>Overall discrimination ability</td></tr>
-        <tr><td style="padding:8px;">🎯 Calibration</td><td style="text-align:center;font-weight:700;">15%</td><td>Can we trust the probabilities?</td></tr>
+        <tr><td style="padding:8px;">Net Profit</td><td style="text-align:center;font-weight:700;">40%</td><td>Business outcome — the whole point</td></tr>
+        <tr><td style="padding:8px;">Recall</td><td style="text-align:center;font-weight:700;">25%</td><td>FN costs 40× more — don't miss subscribers</td></tr>
+        <tr><td style="padding:8px;">AUC-ROC</td><td style="text-align:center;font-weight:700;">20%</td><td>Overall discrimination ability</td></tr>
+        <tr><td style="padding:8px;">Calibration</td><td style="text-align:center;font-weight:700;">15%</td><td>Can we trust the probabilities?</td></tr>
     </table>
 </div>""",
         unsafe_allow_html=True,
@@ -554,7 +555,7 @@ with tab_exec:
         unique = set(sensitivity.values())
         if len(unique) == 1:
             st.success(
-                f"✅ **Selection is ROBUST** — `{model_name}` wins under ALL {len(sensitivity)} criteria tested"
+                f"**Selection is ROBUST** — `{model_name}` wins under ALL {len(sensitivity)} criteria tested"
             )
         else:
             st.warning(
@@ -567,7 +568,7 @@ with tab_exec:
 # ══════════════════════════════════════════════════════════════════════════════
 with tab_cc:
     st.markdown(
-        '<div class="section-header">📞 Campaign Transformation — Before vs After ML</div>',
+        '<div class="section-header">Campaign Transformation — Before vs After ML</div>',
         unsafe_allow_html=True,
     )
 
@@ -590,7 +591,7 @@ with tab_cc:
             st.markdown(
                 f"""
 <div class="glass-card" style="border-left: 4px solid #ef4444;">
-    <h4>❌ Before — Call Everyone</h4>
+    <h4>Before — Call Everyone</h4>
     <div class="big" style="color:#ef4444;">1,000</div>
     <div class="sub">calls per 1,000 clients</div>
     <table style="width:100%; font-size:0.88rem; margin-top:12px;">
@@ -606,7 +607,7 @@ with tab_cc:
             st.markdown(
                 f"""
 <div class="glass-card" style="border-left: 4px solid #059669;">
-    <h4>✅ After — ML-Targeted</h4>
+    <h4>After — ML-Targeted</h4>
     <div class="big" style="color:#059669;">{n_calls}</div>
     <div class="sub">calls per 1,000 clients ({calls_pct:.0f}% of list)</div>
     <table style="width:100%; font-size:0.88rem; margin-top:12px;">
@@ -620,7 +621,7 @@ with tab_cc:
 
     # ── Priority Rules ───────────────────────────────────────────────────
     st.markdown(
-        '<div class="section-header">🎯 Who Should We Call?</div>',
+        '<div class="section-header">Who Should We Call?</div>',
         unsafe_allow_html=True,
     )
 
@@ -665,37 +666,37 @@ with tab_cc:
     st.plotly_chart(fig, use_container_width=True)
 
     st.markdown(
-        '<div class="section-header">📋 Call Priority Rules</div>',
+        '<div class="section-header">Call Priority Rules</div>',
         unsafe_allow_html=True,
     )
     rules = pd.DataFrame(
         [
             {
-                "Priority": "🔴 1 — MUST CALL",
+                "Priority": "1 — MUST CALL",
                 "Segment": "Previous campaign subscribers",
                 "Conv Rate": "~65%",
                 "Action": "Call first, always",
             },
             {
-                "Priority": "🟠 2 — HIGH",
+                "Priority": "2 — HIGH",
                 "Segment": "Students + Retirees via mobile",
                 "Conv Rate": "25–31%",
                 "Action": "Call during Mar/Sep/Oct",
             },
             {
-                "Priority": "🟡 3 — MEDIUM",
+                "Priority": "3 — MEDIUM",
                 "Segment": "ML score > threshold",
                 "Conv Rate": "15–20%",
                 "Action": "Call if capacity allows",
             },
             {
-                "Priority": "🟢 4 — LOW",
+                "Priority": "4 — LOW",
                 "Segment": "ML score < threshold",
                 "Conv Rate": "<10%",
                 "Action": "Email instead",
             },
             {
-                "Priority": "⛔ 5 — STOP",
+                "Priority": "5 — STOP",
                 "Segment": "5+ calls already made",
                 "Conv Rate": "<5%",
                 "Action": "Diminishing returns",
@@ -707,7 +708,7 @@ with tab_cc:
     # ── Recall Trade-off Table ───────────────────────────────────────────
     if recall_df is not None:
         st.markdown(
-            '<div class="section-header">📈 Threshold vs Catch Rate — What Happens If We Adjust?</div>',
+            '<div class="section-header">Threshold vs Catch Rate — What Happens If We Adjust?</div>',
             unsafe_allow_html=True,
         )
         display = recall_df[
@@ -743,7 +744,7 @@ with tab_cc:
 
     # ── Monthly Strategy ─────────────────────────────────────────────────
     st.markdown(
-        '<div class="section-header">📅 When to Call</div>', unsafe_allow_html=True
+        '<div class="section-header">When to Call</div>', unsafe_allow_html=True
     )
     for img_name in ["04_monthly_patterns.png", "05_contact_method.png"]:
         p = FIG_DIR / img_name
@@ -756,7 +757,7 @@ with tab_cc:
 # ══════════════════════════════════════════════════════════════════════════════
 with tab_ds:
     st.markdown(
-        '<div class="section-header">📋 Model Comparison</div>', unsafe_allow_html=True
+        '<div class="section-header">Model Comparison</div>', unsafe_allow_html=True
     )
 
     if comp_df is not None:
@@ -808,7 +809,7 @@ with tab_ds:
 
     # ── SHAP ─────────────────────────────────────────────────────────────
     st.markdown(
-        '<div class="section-header">🔬 Feature Impact — SHAP Analysis</div>',
+        '<div class="section-header">Feature Impact — SHAP Analysis</div>',
         unsafe_allow_html=True,
     )
     for img_name, cap in [
@@ -821,7 +822,7 @@ with tab_ds:
 
     # ── Data Overview ────────────────────────────────────────────────────
     st.markdown(
-        '<div class="section-header">📊 Data Quality & Distribution</div>',
+        '<div class="section-header">Data Quality & Distribution</div>',
         unsafe_allow_html=True,
     )
     d1, d2 = st.columns(2)
@@ -844,7 +845,7 @@ with tab_ds:
 
     # ── Model Diagnostics ────────────────────────────────────────────────
     st.markdown(
-        '<div class="section-header">📈 Model Diagnostics</div>', unsafe_allow_html=True
+        '<div class="section-header">Model Diagnostics</div>', unsafe_allow_html=True
     )
     d1, d2 = st.columns(2)
     with d1:
@@ -889,7 +890,7 @@ with tab_pred:
     c1, c2, c3 = st.columns(3)
 
     with c1:
-        st.markdown("**👤 Client Profile**")
+        st.markdown("**Client Profile**")
         age = st.slider("Age", 17, 98, 40, key="p_age")
         job = st.selectbox(
             "Job",
@@ -930,7 +931,7 @@ with tab_pred:
         loan = st.selectbox("Personal Loan", ["no", "yes", "unknown"], key="p_loan")
 
     with c2:
-        st.markdown("**📞 Campaign Details**")
+        st.markdown("**Campaign Details**")
         contact = st.selectbox("Contact Method", ["cellular", "telephone"], key="p_con")
         month = st.selectbox(
             "Month",
@@ -967,7 +968,7 @@ with tab_pred:
         )
 
     with c3:
-        st.markdown("**📈 Economic Indicators**")
+        st.markdown("**Economic Indicators**")
         emp_var = st.number_input(
             "Emp Variation Rate", -4.0, 2.0, 1.1, step=0.1, key="p_emp"
         )
@@ -985,7 +986,7 @@ with tab_pred:
     # ── Predict Button ───────────────────────────────────────────────────
     st.markdown("")
     if st.button(
-        "🔮  Run Prediction", type="primary", use_container_width=True, key="run_pred"
+        "Run Prediction", type="primary", use_container_width=True, key="run_pred"
     ):
         inp_dict = {
             "age": age,
@@ -1017,11 +1018,10 @@ with tab_pred:
 
             # ── YES / NO Verdict ─────────────────────────────────────────
             css = "verdict-yes" if is_yes else "verdict-no"
-            icon = "✅" if is_yes else "❌"
             st.markdown(
                 f"""
 <div class="{css}">
-    <p class="verdict-label">{icon} {verdict_text}</p>
+    <p class="verdict-label">{verdict_text}</p>
     <p class="verdict-prob">{prob:.1%}</p>
     <p class="verdict-sub">{explanation}</p>
 </div>""",
@@ -1039,15 +1039,15 @@ with tab_pred:
 
             # ── Factor Pills ─────────────────────────────────────────────
             st.markdown(
-                '<div class="section-header">🔍 Key Factors</div>',
+                '<div class="section-header">Key Factors</div>',
                 unsafe_allow_html=True,
             )
 
             pills_html = ""
             for f in pos_factors:
-                pills_html += f'<span class="factor-pos">✅ {f}</span>'
+                pills_html += f'<span class="factor-pos">{f}</span>'
             for f in neg_factors:
-                pills_html += f'<span class="factor-neg">⚠️ {f}</span>'
+                pills_html += f'<span class="factor-neg">{f}</span>'
             if not pos_factors and not neg_factors:
                 pills_html = (
                     '<span class="factor-neutral">No strong signals detected</span>'
@@ -1103,12 +1103,12 @@ with tab_batch:
     )
 
     source = st.radio(
-        "Data Source", ["📁 File Upload", "🌐 URL"], horizontal=True, key="batch_src"
+        "Data Source", ["File Upload", "URL"], horizontal=True, key="batch_src"
     )
 
     df_raw = None
 
-    if source == "📁 File Upload":
+    if source == "File Upload":
         uploaded = st.file_uploader(
             "Upload client data", type=["csv", "xlsx", "xls"], key="fu2"
         )
@@ -1135,7 +1135,7 @@ with tab_batch:
             placeholder="https://archive.ics.uci.edu/ml/...",
             key="url_in2",
         )
-        if url and st.button("⬇️ Download", key="dl_btn"):
+        if url and st.button("Download", key="dl_btn"):
             try:
                 with st.spinner("Downloading..."):
                     resp = requests.get(url, timeout=60)
@@ -1191,7 +1191,7 @@ with tab_batch:
         if missing:
             st.error(f"Missing required columns: {missing}")
         elif st.button(
-            "🔮  Score All Clients",
+            "Score All Clients",
             type="primary",
             use_container_width=True,
             key="batch_pred",
@@ -1201,7 +1201,7 @@ with tab_batch:
 
             result = df_clean.copy()
             result.insert(0, "probability", np.round(probs, 4))
-            result.insert(1, "verdict", np.where(probs >= threshold, "✅ YES", "❌ NO"))
+            result.insert(1, "verdict", np.where(probs >= threshold, "YES", "NO"))
             result = result.sort_values("probability", ascending=False).reset_index(
                 drop=True
             )
@@ -1214,8 +1214,8 @@ with tab_batch:
             # ── KPIs ─────────────────────────────────────────────────────
             k1, k2, k3, k4 = st.columns(4)
             k1.metric("Total Clients", f"{total:,}")
-            k2.metric("✅ YES (Call)", f"{n_yes:,}", delta=f"{n_yes/total:.1%}")
-            k3.metric("❌ NO (Skip)", f"{n_no:,}")
+            k2.metric("YES (Call)", f"{n_yes:,}", delta=f"{n_yes/total:.1%}")
+            k3.metric("NO (Skip)", f"{n_no:,}")
             k4.metric("Avg Probability", f"{avg_p:.1%}")
 
             # ── Distribution ─────────────────────────────────────────────
@@ -1253,7 +1253,7 @@ with tab_batch:
 
             # ── Top Leads ────────────────────────────────────────────────
             st.markdown(
-                '<div class="section-header">🏆 Top 20 Leads</div>',
+                '<div class="section-header">Top 20 Leads</div>',
                 unsafe_allow_html=True,
             )
             top = result.head(20).copy()
@@ -1269,7 +1269,7 @@ with tab_batch:
             d1, d2 = st.columns(2)
             with d1:
                 st.download_button(
-                    "⬇️  Download CSV",
+                    "Download CSV",
                     result.to_csv(index=False),
                     "predictions.csv",
                     "text/csv",
@@ -1279,7 +1279,7 @@ with tab_batch:
                 buf = io.BytesIO()
                 result.to_excel(buf, index=False, engine="openpyxl")
                 st.download_button(
-                    "⬇️  Download Excel",
+                    "Download Excel",
                     buf.getvalue(),
                     "predictions.xlsx",
                     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

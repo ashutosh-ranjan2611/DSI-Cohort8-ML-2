@@ -3,11 +3,11 @@
 PIPELINE v4.1 — Final Production
 ==================================
 Changes from v4:
-  🐛  Fixed logging format error ($%,.0f → pre-formatted string)
-  🔍  Added duplicate detection + outlier clipping in cleaning
-  📊  Added EDA figures: outlier boxplots, duplicates summary
-  📈  Before/After hyperparameter tuning comparison (baseline vs tuned)
-  📉  Loss calculation (log-loss) before and after tuning
+  - Fixed logging format error ($%,.0f -> pre-formatted string)
+  - Added duplicate detection + outlier clipping in cleaning
+  - Added EDA figures: outlier boxplots, duplicates summary
+  - Before/After hyperparameter tuning comparison (baseline vs tuned)
+  - Loss calculation (log-loss) before and after tuning
 
 Usage:  python scripts/run_pipeline.py
         python scripts/run_pipeline.py --n-trials 30
@@ -21,10 +21,8 @@ import warnings
 warnings.filterwarnings("ignore", category=FutureWarning)
 warnings.filterwarnings("ignore", category=UserWarning)
 
-import argparse, json, logging, time, sys
+import argparse, json, logging, pickle, time, sys
 from pathlib import Path
-
-import joblib
 import matplotlib
 
 matplotlib.use("Agg")
@@ -136,7 +134,7 @@ def banner(title, emoji="═"):
 
 
 def step_done(msg):
-    log.info(f"  \033[92m✅ {msg}\033[0m")
+    log.info(f"  \033[92m[OK] {msg}\033[0m")
 
 
 def metric_log(label, value):
@@ -243,7 +241,7 @@ def _print_data_report(df_raw, df, tr, va, te):
         if col == "duration":
             continue
         vc = df_raw[col].value_counts()
-        flag = f"⚠️  rare: '{vc.idxmin()}' ({vc.min()})" if vc.min() < 50 else "✅ OK"
+        flag = f"rare: '{vc.idxmin()}' ({vc.min()})" if vc.min() < 50 else "OK"
         log.info(_tbl_row(col, vc.nunique(), f"{vc.min():,}", flag, widths=w))
     log.info(_tbl_bot(w))
     log.info("")
@@ -272,7 +270,7 @@ def _print_data_report(df_raw, df, tr, va, te):
     log.info(_tbl_div(w))
     for col in available_sk:
         sk, ku = df[col].skew(), df[col].kurtosis()
-        status = "⚠️  HIGH" if abs(sk) > 2 else "✅ OK"
+        status = "HIGH" if abs(sk) > 2 else "OK"
         log.info(_tbl_row(col, f"{sk:+.2f}", f"{ku:.2f}", status, widths=w))
     log.info(_tbl_bot(w))
     log.info("")
@@ -319,7 +317,7 @@ def _print_data_report(df_raw, df, tr, va, te):
 
 
 def step_data():
-    banner("STEP 1–3  ·  INGEST → CLEAN → SPLIT", "📦")
+    banner("STEP 1–3  ·  INGEST -> CLEAN -> SPLIT", "")
 
     # Suppress per-line chatter from src modules — tables replace it below
     for mod in ("src.ingest", "src.clean", "src.split"):
@@ -339,7 +337,7 @@ def step_data():
 # STEP 4 : EDA
 # ═══════════════════════════════════════════════════════════════════════════════
 def step_eda(df_raw, df):
-    banner("STEP 4  ·  EDA — Stakeholder-Friendly Figures", "📊")
+    banner("STEP 4  ·  EDA — Stakeholder-Friendly Figures", "")
 
     # 4a. Target distribution
     fig, axes = plt.subplots(1, 2, figsize=(13, 5))
@@ -758,14 +756,14 @@ def step_eda(df_raw, df):
     plt.close()
     step_done("08b_nonlinear_relationships.png — justifies binning strategy")
 
-    log.info(f"  🎨 EDA complete — {len(list(FIG_DIR.glob('*.png')))} figures")
+    log.info(f"  EDA complete — {len(list(FIG_DIR.glob('*.png')))} figures")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # STEP 5 : FEATURE IMPORTANCE + SWEEP (FIXED — no data leakage)
 # ═══════════════════════════════════════════════════════════════════════════════
 def step_feature_importance(X_train, y_train, use_binning):
-    banner("STEP 5  ·  FEATURE IMPORTANCE (leakage-free)", "🔍")
+    banner("STEP 5  ·  FEATURE IMPORTANCE (leakage-free)", "")
 
     cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
     importances_all = []
@@ -816,15 +814,15 @@ def step_feature_importance(X_train, y_train, use_binning):
     step_done("09_feature_importance_rf.png (CV-averaged, no data leakage)")
 
     sorted_features = imp_df["feature"].tolist()
-    log.info(f"  📐 Total features: {len(sorted_features)}")
-    log.info(f"  🏆 Top-3: {', '.join(sorted_features[:3])}")
+    log.info(f"  Total features: {len(sorted_features)}")
+    log.info(f"  Top-3: {', '.join(sorted_features[:3])}")
     return feat_names, sorted_features, imp_df
 
 
 def step_feature_count_sweep(
     X_train, y_train, feat_names, sorted_features, use_binning
 ):
-    banner("STEP 5b  ·  FEATURE COUNT SWEEP", "📐")
+    banner("STEP 5b  ·  FEATURE COUNT SWEEP", "")
 
     base_pipe = build_pipeline(
         RandomForestClassifier(
@@ -847,7 +845,7 @@ def step_feature_count_sweep(
 
     sweep_results = []
     cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
-    log.info(f"  🔄 Sweeping {len(counts_to_try)} feature counts: {counts_to_try}")
+    log.info(f"  Sweeping {len(counts_to_try)} feature counts: {counts_to_try}")
 
     for n_feat in counts_to_try:
         top_n = feature_order[:n_feat]
@@ -1017,7 +1015,7 @@ def step_baseline_models(X_tr, y_tr, X_te, y_te, use_binning):
     Train models with DEFAULT hyperparameters (no tuning) to establish baseline.
     This enables a before/after comparison showing the value of Optuna tuning.
     """
-    banner("STEP 5c  ·  BASELINE MODELS (Before Tuning)", "📏")
+    banner("STEP 5c  ·  BASELINE MODELS (Before Tuning)", "")
 
     baseline_results = {}
     default_configs = {
@@ -1109,7 +1107,7 @@ def step_baseline_models(X_tr, y_tr, X_te, y_te, use_binning):
 # STEP 6–7 : TRAIN + EVALUATE + COMPOSITE SELECTION
 # ═══════════════════════════════════════════════════════════════════════════════
 def step_train_and_evaluate(X_tr, y_tr, X_va, y_va, X_te, y_te, n_trials, use_binning):
-    banner("STEP 6–7  ·  TRAINING + COMPOSITE MODEL SELECTION", "🏋️")
+    banner("STEP 6–7  ·  TRAINING + COMPOSITE MODEL SELECTION", "")
 
     cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
     results = {}
@@ -1119,7 +1117,7 @@ def step_train_and_evaluate(X_tr, y_tr, X_va, y_va, X_te, y_te, n_trials, use_bi
     # ── Core 3 models ────────────────────────────────────────────────────────
     for name in ["logistic_regression", "random_forest", "xgboost"]:
         log.info("")
-        log.info(f"  \033[1m🔧 Training: {name} ({n_trials} Optuna trials)\033[0m")
+        log.info(f"  \033[1mTraining: {name} ({n_trials} Optuna trials)\033[0m")
 
         tune_result = tune_model(name, X_tr, y_tr, n_trials=n_trials)
         pipeline = train_final_model(name, tune_result["best_params"], X_tr, y_tr)
@@ -1151,13 +1149,14 @@ def step_train_and_evaluate(X_tr, y_tr, X_va, y_va, X_te, y_te, n_trials, use_bi
         row["brier_score"] = round(metrics["brier_score"], 4)
         all_metrics.append(row)
 
-        joblib.dump(pipeline, MOD_DIR / f"{name}.joblib")
+        with open(MOD_DIR / f"{name}.pkl", "wb") as f:
+            pickle.dump(pipeline, f)
         # progress stored in all_metrics; summary table printed after ensemble
 
     # ── LightGBM ─────────────────────────────────────────────────────────────
     if HAS_LGBM:
         log.info("")
-        log.info(f"  \033[1m🔧 Training: lightgbm ({n_trials} Optuna trials)\033[0m")
+        log.info(f"  \033[1mTraining: lightgbm ({n_trials} Optuna trials)\033[0m")
         lgb_result = _tune_lightgbm(X_tr, y_tr, n_trials, cv, use_binning)
         lgb_pipe = build_pipeline(
             LGBMClassifier(
@@ -1193,14 +1192,15 @@ def step_train_and_evaluate(X_tr, y_tr, X_va, y_va, X_te, y_te, n_trials, use_bi
         row["net_profit"] = round(cost["net_profit"], 0)
         row["brier_score"] = round(metrics["brier_score"], 4)
         all_metrics.append(row)
-        joblib.dump(lgb_pipe, MOD_DIR / "lightgbm.joblib")
+        with open(MOD_DIR / "lightgbm.pkl", "wb") as f:
+            pickle.dump(lgb_pipe, f)
         # progress stored in all_metrics; summary table printed after ensemble
     else:
-        log.info("  ⚠️  LightGBM not installed — skipping")
+        log.info("  LightGBM not installed — skipping")
 
     # ── Diverse Voting Ensemble ──────────────────────────────────────────────
     log.info("")
-    log.info(f"  \033[1m🔧 Building: voting_ensemble (diverse soft vote)\033[0m")
+    log.info(f"  \033[1mBuilding: voting_ensemble (diverse soft vote)\033[0m")
 
     tree_candidates = {
         n: r["test_metrics"]["roc_auc"]
@@ -1254,10 +1254,8 @@ def step_train_and_evaluate(X_tr, y_tr, X_va, y_va, X_te, y_te, n_trials, use_bi
     row["net_profit"] = round(cost["net_profit"], 0)
     row["brier_score"] = round(metrics["brier_score"], 4)
     all_metrics.append(row)
-    joblib.dump(
-        {"preprocess": preprocess_pipe, "voter": voter},
-        MOD_DIR / "voting_ensemble.joblib",
-    )
+    with open(MOD_DIR / "voting_ensemble.pkl", "wb") as f:
+        pickle.dump({"preprocess": preprocess_pipe, "voter": voter}, f)
     # ── Training Results Summary table ─────────────────────────────────────
     _section("Training Results Summary")
     w_tr = [22, 7, 9, 8, 8, 8, 8, 12]
@@ -1287,7 +1285,7 @@ def step_train_and_evaluate(X_tr, y_tr, X_va, y_va, X_te, y_te, n_trials, use_bi
     # ── COMPOSITE MODEL SELECTION ────────────────────────────────────────────
     comp_df = pd.DataFrame(all_metrics)
 
-    banner("COMPOSITE MODEL SELECTION", "🧠")
+    banner("COMPOSITE MODEL SELECTION", "")
     best_name, scored_df = select_best_model(comp_df)
 
     # Sensitivity analysis
@@ -1298,17 +1296,17 @@ def step_train_and_evaluate(X_tr, y_tr, X_va, y_va, X_te, y_te, n_trials, use_bi
     log.info(_tbl_head(["Criterion", "Winner", "Status"], w_sa))
     log.info(_tbl_div(w_sa))
     for criterion, winner in sensitivity.items():
-        status = "✅ Matches" if winner == best_name else "⚠️  Differs"
+        status = "Matches" if winner == best_name else "Differs"
         log.info(_tbl_row(criterion, winner, status, widths=w_sa))
     log.info(_tbl_bot(w_sa))
 
     unique_winners = set(sensitivity.values())
     if len(unique_winners) == 1:
-        log.info(f"  {_G}{_B}✅ ROBUST: {best_name} wins under ALL criteria!{_R}")
+        log.info(f"  {_G}{_B}ROBUST: {best_name} wins under ALL criteria!{_R}")
     elif len(unique_winners) <= 2:
-        log.info(f"  {_Y}{_B}🟡 MOSTLY ROBUST: {best_name} wins composite; {len(unique_winners)} unique winners{_R}")
+        log.info(f"  {_Y}{_B}MOSTLY ROBUST: {best_name} wins composite; {len(unique_winners)} unique winners{_R}")
     else:
-        log.info(f"  \033[91m{_B}⚠️  FRAGILE: {len(unique_winners)} different winners across criteria{_R}")
+        log.info(f"  \033[91m{_B}FRAGILE: {len(unique_winners)} different winners across criteria{_R}")
 
     # Save everything
     scored_df.to_json(MET_DIR / "comparison.json", orient="records", indent=2)
@@ -1328,10 +1326,10 @@ def step_train_and_evaluate(X_tr, y_tr, X_va, y_va, X_te, y_te, n_trials, use_bi
             f,
             indent=2,
         )
-    log.info(f"\n  📌 Selected: \033[1m{best_name}\033[0m (composite-optimized)")
+    log.info(f"\n  Selected: \033[1m{best_name}\033[0m (composite-optimized)")
 
     # ── Recall analysis table ────────────────────────────────────────────────
-    banner("RECALL ANALYSIS — Stakeholder View", "📋")
+    banner("RECALL ANALYSIS — Stakeholder View", "")
     best_probs = results[best_name]["y_te_prob"]
     recall_df = recall_analysis(y_te, best_probs)
     recall_df.to_csv(MET_DIR / "recall_analysis.csv", index=False)
@@ -1355,7 +1353,7 @@ def step_train_and_evaluate(X_tr, y_tr, X_va, y_va, X_te, y_te, n_trials, use_bi
                 widths=w_rc,
             ))
     log.info(_tbl_bot(w_rc))
-    log.info("  📋 Full table saved → recall_analysis.csv")
+    log.info("  Full table saved -> recall_analysis.csv")
 
     return results, pipelines, scored_df
 
@@ -1365,7 +1363,7 @@ def step_train_and_evaluate(X_tr, y_tr, X_va, y_va, X_te, y_te, n_trials, use_bi
 # ═══════════════════════════════════════════════════════════════════════════════
 def step_tuning_comparison(baseline_results, tuned_results, y_te):
     """Compare baseline (default params) vs tuned (Optuna) performance."""
-    banner("STEP 7b  ·  BEFORE vs AFTER HYPERPARAMETER TUNING", "📈")
+    banner("STEP 7b  ·  BEFORE vs AFTER HYPERPARAMETER TUNING", "")
 
     comparison_rows = []
     for name in baseline_results:
@@ -1558,7 +1556,7 @@ def step_tuning_comparison(baseline_results, tuned_results, y_te):
 # STEP 8 : EVALUATION FIGURES
 # ═══════════════════════════════════════════════════════════════════════════════
 def step_eval_figures(results, y_te):
-    banner("STEP 8  ·  EVALUATION FIGURES", "📈")
+    banner("STEP 8  ·  EVALUATION FIGURES", "")
 
     # ── Confusion matrices ───────────────────────────────────────────────────
     n_models = len(results)
@@ -1783,7 +1781,7 @@ def step_eval_figures(results, y_te):
 # STEP 9 : SHAP
 # ═══════════════════════════════════════════════════════════════════════════════
 def step_shap(best_pipeline, X_test, y_test, feat_names, best_name):
-    banner("STEP 9  ·  SHAP EXPLAINABILITY", "🔬")
+    banner("STEP 9  ·  SHAP EXPLAINABILITY", "")
     import shap
 
     classifier = best_pipeline.named_steps["classifier"]
@@ -1938,7 +1936,7 @@ def main():
         "\033[1m\033[95m╔═══════════════════════════════════════════════════════════════╗\033[0m"
     )
     log.info(
-        "\033[1m\033[95m║   🚀  BANK MARKETING ML PIPELINE v4.1 (Production)           ║\033[0m"
+        "\033[1m\033[95m║   BANK MARKETING ML PIPELINE v4.1 (Production)               ║\033[0m"
     )
     log.info(
         "\033[1m\033[95m║   Models: LR · RF · XGB"
@@ -1954,7 +1952,7 @@ def main():
         "\033[1m\033[95m╚═══════════════════════════════════════════════════════════════╝\033[0m"
     )
     log.info(
-        f"  ⚙️  Trials: {args.n_trials}  |  Models: {n_models}  |  "
+        f"  Trials: {args.n_trials}  |  Models: {n_models}  |  "
         f"Binning: {'ON' if use_binning else 'OFF'}  |  "
         f"SHAP: {'OFF' if args.skip_shap else 'ON'}  |  "
         f"Sweep: {'OFF' if args.skip_feature_sweep else 'ON'}"
@@ -1978,7 +1976,7 @@ def main():
     if not args.skip_feature_sweep:
         step_feature_count_sweep(X_tr, y_tr, feat_names, sorted_features, use_binning)
     else:
-        log.info("  ⏭️  Feature sweep skipped")
+        log.info("  Feature sweep skipped")
 
     # 5c: Baseline models (BEFORE tuning) — for comparison
     baseline_results = step_baseline_models(X_tr, y_tr, X_te, y_te, use_binning)
@@ -2000,10 +1998,10 @@ def main():
         if best_name == "voting_ensemble":
             individual = comp_df[comp_df["model"] != "voting_ensemble"]
             best_name = individual.loc[individual["test_roc_auc"].idxmax(), "model"]
-            log.info(f"  ℹ️  Ensemble is composite-winner — SHAP on {best_name}")
+            log.info(f"  Ensemble is composite-winner — SHAP on {best_name}")
         step_shap(pipelines[best_name], X_te, y_te, feat_names, best_name)
     else:
-        log.info("  ⏭️  SHAP skipped")
+        log.info("  SHAP skipped")
 
     # Summary
     elapsed = time.time() - start
@@ -2014,13 +2012,13 @@ def main():
         "\033[1m\033[92m╔═══════════════════════════════════════════════════════════════╗\033[0m"
     )
     log.info(
-        f"\033[1m\033[92m║   ✅  PIPELINE v4.1 COMPLETE in {elapsed / 60:.1f} minutes{' ' * max(0, 29 - len(f'{elapsed / 60:.1f}'))}║\033[0m"
+        f"\033[1m\033[92m║   PIPELINE v4.1 COMPLETE in {elapsed / 60:.1f} minutes{' ' * max(0, 29 - len(f'{elapsed / 60:.1f}'))}║\033[0m"
     )
-    log.info(f"\033[1m\033[92m║   📁  Models: {str(MOD_DIR)[:47]:<47s} ║\033[0m")
+    log.info(f"\033[1m\033[92m║   Models: {str(MOD_DIR)[:47]:<47s} ║\033[0m")
     log.info(
-        f"\033[1m\033[92m║   📊  {n_figs} figures → {str(FIG_DIR)[:43]:<43s} ║\033[0m"
+        f"\033[1m\033[92m║   {n_figs} figures -> {str(FIG_DIR)[:43]:<43s} ║\033[0m"
     )
-    log.info(f"\033[1m\033[92m║   📋  Metrics → {str(MET_DIR)[:45]:<45s} ║\033[0m")
+    log.info(f"\033[1m\033[92m║   Metrics -> {str(MET_DIR)[:45]:<45s} ║\033[0m")
     log.info(
         "\033[1m\033[92m╚═══════════════════════════════════════════════════════════════╝\033[0m"
     )
@@ -2028,7 +2026,7 @@ def main():
     # ── Results Summary Table ────────────────────────────────────────────────
     log.info("")
     log.info(f"  {_B}{_C}{'═' * 73}{_R}")
-    log.info(f"  {_B}{_C}  📊  RESULTS SUMMARY{_R}")
+    log.info(f"  {_B}{_C}  RESULTS SUMMARY{_R}")
     log.info(f"  {_B}{_C}{'═' * 73}{_R}")
     log.info("")
 
@@ -2067,14 +2065,14 @@ def main():
     ))
     log.info(_tbl_div(w_b))
     for _, row in comp_df.iterrows():
-        medal = {1: "🥇", 2: "🥈", 3: "🥉"}.get(int(row["overall_rank"]), "  ")
+        rank_str = f"#{int(row['overall_rank'])}"
         log.info(_tbl_row(
             row["model"],
             f"${row['net_profit']:,.0f}",
             f"{row['brier_score']:.4f}",
             f"{row['composite_score']:.4f}",
             row.get("strengths", "balanced"),
-            f"{medal} #{int(row['overall_rank'])}",
+            rank_str,
             widths=w_b,
         ))
     log.info(_tbl_bot(w_b))
@@ -2083,9 +2081,9 @@ def main():
     # ── Winner box ───────────────────────────────────────────────────────────
     best = comp_df.iloc[0]
     log.info(f"  {_B}{_C}┌{'─' * 71}┐{_R}")
-    log.info(f"  {_B}{_C}│  🏆  Winner : {_Y}{best['model']:<20}{_C}  composite = {_Y}{best['composite_score']:.4f}{_C}{'':>12}│{_R}")
+    log.info(f"  {_B}{_C}│  Winner : {_Y}{best['model']:<20}{_C}  composite = {_Y}{best['composite_score']:.4f}{_C}{'':>12}│{_R}")
     log.info(f"  {_B}{_C}│     Profit : {_Y}${best['net_profit']:>10,.0f}{_C}   Recall : {_Y}{best['test_recall']:.3f}{_C}   AUC : {_Y}{best['test_roc_auc']:.4f}{_C}   Brier : {_Y}{best['brier_score']:.4f}{_C}  │{_R}")
-    log.info(f"  {_B}{_C}│  💡 Selection : Profit 40% + Recall 25% + AUC 20% + Calibration 15%{'':>4}│{_R}")
+    log.info(f"  {_B}{_C}│  Selection : Profit 40% + Recall 25% + AUC 20% + Calibration 15%{'':>4}│{_R}")
     log.info(f"  {_B}{_C}└{'─' * 71}┘{_R}")
     log.info("")
 
