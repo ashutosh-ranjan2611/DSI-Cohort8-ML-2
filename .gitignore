@@ -37,8 +37,7 @@ personal/
 # models/*.joblib
 # models/*.pkl
 # models/*.json
-models/production/*.joblib
-models/production/*.pkl
+
 
 # Reports (auto-generated)
 reports/figures/*.png

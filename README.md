@@ -163,62 +163,6 @@ We identified the following risks during our analysis and documented how we addr
 
 ## How We Approached the Analysis
 
-### Pipeline Architecture
-
-The entire analysis will be automated through a single Python script that will execute the following steps in order:
-
-```mermaid
-%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#FFE0F7', 'primaryBorderColor': '#7C3AED', 'primaryTextColor': '#1F2937', 'lineColor': '#4B5563', 'secondaryColor': '#D1FAE5', 'tertiaryColor': '#DBEAFE', 'fontSize': '13px' }}}%%
-flowchart LR
-  %% ======== Data Layer ========
-  UCI([UCI Bank Marketing<br/>Nested ZIP])
-  INGEST[Ingest<br/>Auto-download + extract]
-  CLEAN[Clean<br/>Unknown handling + clipping + de-dup]
-  SPLIT[Stratified Split<br/>70 / 15 / 15]
-  FEAT[Feature Engineering<br/>pdays transform + custom binning]
-
-  %% ======== Modeling Layer ========
-  TUNE[Optuna Tuning<br/>30 trials per model]
-  TRAIN[Train Models<br/>LR · RF · XGB · LGBM · Voting]
-  THRESH[Threshold Optimization<br/>Cost-sensitive: FP $5 / FN $200]
-  SELECT[Composite Selection<br/>Profit 40% + Recall 25% + AUC 20% + Calibration 15%]
-
-  %% ======== Explainability + Serving Layer ========
-  SHAP[SHAP Analysis<br/>TreeExplainer]
-  DASH[Stakeholder Dashboard<br/>Streamlit · 5 tabs]
-
-  %% ======== Artifacts ========
-  subgraph ART[Generated Artifacts]
-    MODELS[(Models<br/>.joblib)]
-    METRICS[(Metrics<br/>comparison.json / recall_analysis.csv)]
-    FIGS[(Figures<br/>18+ plots)]
-  end
-
-  %% ======== Main Flow ========
-  UCI --> INGEST --> CLEAN --> SPLIT --> FEAT --> TUNE --> TRAIN --> THRESH --> SELECT --> SHAP --> DASH
-  TRAIN --> MODELS
-  SELECT --> METRICS
-  SHAP --> FIGS
-
-  %% ======== Styling ========
-  classDef data fill:#DBEAFE,stroke:#2563EB,stroke-width:3px,color:#0F172A;
-  classDef prep fill:#D1FAE5,stroke:#059669,stroke-width:3px,color:#052E16;
-  classDef model fill:#FDE68A,stroke:#D97706,stroke-width:3px,color:#451A03;
-  classDef decision fill:#E9D5FF,stroke:#7C3AED,stroke-width:3px,color:#2E1065;
-  classDef explain fill:#FBCFE8,stroke:#DB2777,stroke-width:3px,color:#500724;
-  classDef serving fill:#CFFAFE,stroke:#0891B2,stroke-width:3px,color:#083344;
-  classDef artifact fill:#FEF3C7,stroke:#F59E0B,stroke-width:3px,color:#78350F;
-
-  class UCI,INGEST data;
-  class CLEAN,SPLIT,FEAT prep;
-  class TUNE,TRAIN,THRESH model;
-  class SELECT decision;
-  class SHAP explain;
-  class DASH serving;
-  class MODELS,METRICS,FIGS artifact;
-
-```
-
 ### Why These Models
 
 We will use four individual models plus one ensemble:
@@ -259,44 +203,50 @@ _Exact values will be generated when the pipeline runs._
 
 ---
 
-## Repository Structure
+## Pipeline Architecture
 
-> **Interactive view (zoom + pan):** open [docs/pipeline-flow.html](docs/pipeline-flow.html) in your browser for a scrollable, zoomable version of the diagram below.
+The entire analysis will be automated through a single Python script that will execute the following steps in order:
+
+> Click the button below to open the **interactive version** — supports mouse scroll to zoom, drag to pan, and zoom buttons.
+
+[![Open Interactive Pipeline View](https://img.shields.io/badge/%F0%9F%94%8D%20Open%20Interactive%20Pipeline%20View-Click%20to%20Zoom%20%26%20Pan-4A90D9?style=for-the-badge&logo=githubpages&logoColor=white)](docs/pipeline-flow.html)
 
 ```mermaid
+%%{init: {"theme": "base", "themeVariables": {"fontSize": "18px", "fontFamily": "Segoe UI, Arial, sans-serif", "primaryTextColor": "#1a1a2e", "lineColor": "#555"}} }%%
 flowchart TD
-    subgraph DATA["Data Layer"]
-        RAW["data/raw/\nbank-additional-full.csv\n41,188 rows - 21 columns"]
-        PROC["data/processed/\ntrain / val / test  Parquet"]
-        REF["data/reference/\ndrift detection baseline"]
+    subgraph DATA["  Data Layer  "]
+        RAW["**data/raw/**\nbank-additional-full.csv\n41,188 rows · 21 columns"]
+        PROC["**data/processed/**\ntrain / val / test  Parquet"]
+        REF["**data/reference/**\ndrift detection baseline"]
     end
 
-    subgraph SRC["src/  —  Core ML Pipeline"]
-        ING["ingest.py\nDownload and Validate UCI ZIP"]
-        CLN["clean.py\nDedup - Clip Outliers - Impure Unknowns\nDrop duration in production"]
-        SPL["split.py\n70 / 15 / 15 Stratified Split  Seed 42"]
-        FEA["features.py\nPdaysTransformer\nNonLinearBinningTransformer\nColumnTransformer"]
-        TRN["train.py\nLR - RF - XGBoost - LightGBM\nOptuna Hyperparameter Tuning"]
-        EVL["evaluate.py\nMetrics - Optimal Threshold\nBusiness Cost Analysis"]
+    subgraph SRC["  src/  —  Core ML Pipeline  "]
+        ING["**ingest.py**\nDownload and Validate UCI ZIP"]
+        CLN["**clean.py**\nDedup · Clip Outliers · Impute Unknowns\nDrop duration in production"]
+        SPL["**split.py**\n70 / 15 / 15 Stratified Split  ·  Seed 42"]
+        FEA["**features.py**\nPdaysTransformer\nNonLinearBinningTransformer\nColumnTransformer"]
+        TRN["**train.py**\nLR · RF · XGBoost · LightGBM\nOptuna Hyperparameter Tuning"]
+        EVL["**evaluate.py**\nMetrics · Optimal Threshold\nBusiness Cost Analysis"]
     end
 
-    subgraph EXP["experiments/  —  Jupyter Notebooks"]
-        N01["01_eda.ipynb\nExploratory Data Analysis"]
-        N02["02_feature_engineering.ipynb\nStep-by-Step Pipeline Walkthrough"]
-        N03["03_model_comparison.ipynb\nTrain All Models and Compare"]
-        N04["04_shap_analysis.ipynb\nSHAP Global and Local Explainability"]
-        N05["05_pipeline_visualization.ipynb\nArchitecture and Flow Diagrams"]
+    subgraph EXP["  experiments/  —  Jupyter Notebooks  "]
+        N01["**01_eda.ipynb**\nExploratory Data Analysis"]
+        N02["**02_feature_engineering.ipynb**\nStep-by-Step Pipeline Walkthrough"]
+        N03["**03_model_comparison.ipynb**\nTrain All Models and Compare"]
+        N04["**04_shap_analysis.ipynb**\nSHAP Global and Local Explainability"]
+        N05["**05_pipeline_visualization.ipynb**\nArchitecture and Flow Diagrams"]
     end
 
-    subgraph OUT["Outputs"]
-        MDL["models/production/\nxgboost.joblib"]
-        THR["models/threshold.json\ncost-optimal decision threshold"]
-        RPT["reports/metrics/\ncomparison - shap - recall - tuning"]
-        FIG["reports/figures/\nall plots and charts"]
+    subgraph OUT["  Outputs  "]
+        MDLALL["**models/**\nAll compared models\nlogistic_regression.pkl\nrandom_forest.pkl\nxgboost.pkl\nmodels_manifest.json"]
+        MDL["**models/production/**\nxgboost.pkl  best model\nxgboost_booster.bin"]
+        THR["**models/production/threshold.json**\ncost-optimal threshold + metrics"]
+        RPT["**reports/metrics/**\ncomparison · shap · recall · tuning"]
+        FIG["**reports/figures/**\nall plots and charts"]
     end
 
-    SCR["scripts/run_pipeline.py\nSingle-command End-to-End Orchestrator"]
-    APP["app/main.py\nStreamlit Dashboard\n5 Stakeholder Tabs"]
+    SCR["**scripts/run_pipeline.py**\nSingle-command End-to-End Orchestrator"]
+    APP["**app/main.py**\nStreamlit Dashboard\n5 Stakeholder Tabs"]
 
     RAW --> ING
     ING --> CLN
@@ -306,6 +256,7 @@ flowchart TD
     PROC --> FEA
     FEA --> TRN
     TRN --> EVL
+    EVL --> MDLALL
     EVL --> MDL
     EVL --> THR
     EVL --> RPT
@@ -322,25 +273,26 @@ flowchart TD
     SCR -. orchestrates .-> EVL
 
     N01 -. uses .-> RAW
+    N03 -. produces .-> MDLALL
     N03 -. produces .-> MDL
     N04 -. uses .-> MDL
 
-    style DATA fill:#0D47A1,color:#E3F2FD,stroke:#1565C0
-    style SRC  fill:#1B5E20,color:#E8F5E9,stroke:#2E7D32
-    style EXP  fill:#BF360C,color:#FBE9E7,stroke:#E64A19
-    style OUT  fill:#4A148C,color:#F3E5F5,stroke:#6A1B9A
+    style DATA fill:#EFF6FF,color:#1E3A8A,stroke:#93C5FD,stroke-width:2px
+    style SRC  fill:#F0FDF4,color:#14532D,stroke:#86EFAC,stroke-width:2px
+    style EXP  fill:#FFFBEB,color:#78350F,stroke:#FCD34D,stroke-width:2px
+    style OUT  fill:#F5F3FF,color:#3B0764,stroke:#C4B5FD,stroke-width:2px
 
-    classDef dataNode fill:#1E88E5,color:#fff,stroke:#1565C0,font-weight:bold
-    classDef srcNode  fill:#2E7D32,color:#fff,stroke:#1B5E20
-    classDef expNode  fill:#E64A19,color:#fff,stroke:#BF360C
-    classDef outNode  fill:#7B1FA2,color:#fff,stroke:#4A148C
-    classDef appNode  fill:#C62828,color:#fff,stroke:#B71C1C,font-weight:bold
-    classDef scrNode  fill:#37474F,color:#fff,stroke:#263238,font-weight:bold
+    classDef dataNode fill:#BFDBFE,color:#1E3A8A,stroke:#3B82F6,stroke-width:1.5px,font-weight:bold
+    classDef srcNode  fill:#BBF7D0,color:#14532D,stroke:#22C55E,stroke-width:1.5px,font-weight:bold
+    classDef expNode  fill:#FDE68A,color:#78350F,stroke:#F59E0B,stroke-width:1.5px,font-weight:bold
+    classDef outNode  fill:#DDD6FE,color:#3B0764,stroke:#8B5CF6,stroke-width:1.5px,font-weight:bold
+    classDef appNode  fill:#FECDD3,color:#881337,stroke:#F43F5E,stroke-width:2px,font-weight:bold
+    classDef scrNode  fill:#E2E8F0,color:#1E293B,stroke:#64748B,stroke-width:2px,font-weight:bold
 
     class RAW,PROC,REF dataNode
     class ING,CLN,SPL,FEA,TRN,EVL srcNode
     class N01,N02,N03,N04,N05 expNode
-    class MDL,THR,RPT,FIG outNode
+    class MDLALL,MDL,THR,RPT,FIG outNode
     class APP appNode
     class SCR scrNode
 ```
@@ -350,7 +302,7 @@ flowchart TD
 ```
 DSI-Cohort8-ML-2/
 |
-|-- app/                   Streamlit dashboard (5 stakeholder tabs)
+|-- app/                   Streamlit App to test and visualize the final model in real time
 |-- data/
 |   |-- raw/               Source CSV from UCI (auto-downloaded)
 |   |-- processed/         Train / val / test splits (Parquet)
@@ -360,8 +312,14 @@ DSI-Cohort8-ML-2/
 |-- experiments/           Jupyter notebooks (EDA -> features -> models -> SHAP -> viz)
 |-- mlruns/                MLflow experiment tracking artifacts
 |-- models/
-|   |-- production/        Best saved model (xgboost.joblib)
-|   |-- threshold.json     Cost-optimal classification threshold
+|   |-- logistic_regression.pkl   All compared models (pickle)
+|   |-- random_forest.pkl
+|   |-- xgboost.pkl
+|   |-- models_manifest.json      Model listing + selection rationale
+|   |-- production/
+|       |-- xgboost.pkl           Best model (Optuna-tuned pipeline)
+|       |-- xgboost_booster.bin   Native XGBoost booster
+|       |-- threshold.json        Cost-optimal threshold + test metrics
 |-- reports/
 |   |-- figures/           All generated plots and charts
 |   |-- metrics/           CSV / JSON metric outputs
