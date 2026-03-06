@@ -1,7 +1,14 @@
 """
-Model training — 3 models, Optuna hyperparameter tuning, cross-validation.
+Model training — 4 models with Optuna hyperparameter tuning and 5-fold cross-validation.
 
-Models: Logistic Regression (baseline), Random Forest, XGBoost.
+We compare these 4 classifiers:
+  - Logistic Regression : the simple, explainable baseline (like a scorecard)
+  - Random Forest       : hundreds of decision trees that vote together
+  - XGBoost             : trees that learn from each other's mistakes one step at a time
+  - KNN                 : "what did the most similar customers do?"
+
+For each model, Optuna automatically finds the best settings (hyperparameters)
+by trying different combinations and keeping the one with the highest AUC score.
 """
 
 from __future__ import annotations
@@ -11,138 +18,139 @@ import logging
 import mlflow
 import optuna
 
-# ── Suppress noisy MLflow warnings ──────────────────────────────────────────
-# 1. sklearn pickle serialisation advisory — emitted via logging, not warnings
+# Suppress noisy MLflow log lines that clutter the terminal output
 logging.getLogger("mlflow.sklearn").setLevel(logging.ERROR)
-# 2. pip version resolution failure in conda.yaml generation
 logging.getLogger("mlflow.utils.environment").setLevel(logging.ERROR)
-# 3. MLflow DB migration noise (only relevant on first run)
 logging.getLogger("mlflow.store.db.utils").setLevel(logging.ERROR)
-from sklearn.calibration import CalibratedClassifierCV
+
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import StratifiedKFold, cross_val_score
 from sklearn.neighbors import KNeighborsClassifier
-from sklearn.svm import LinearSVC
 from xgboost import XGBClassifier
 
 from src.features import build_pipeline
 
 logger = logging.getLogger(__name__)
 
+# Fixed random seed so every run gives the same results
 SEED = 42
+
+# 5-fold cross-validation: split the training data into 5 chunks,
+# train on 4 chunks and validate on the 5th, rotate, then average.
+# This gives a reliable performance estimate without touching the test set.
 CV = StratifiedKFold(n_splits=5, shuffle=True, random_state=SEED)
 
-def _make_linear_svm(**kwargs) -> CalibratedClassifierCV:
-    """Wrap LinearSVC in CalibratedClassifierCV for probability outputs.
-
-    LinearSVC is O(n) vs RBF-SVC's O(n^2–n^3), so it scales to the full
-    training set without subsampling. Isotonic regression calibration
-    (cv=5) gives well-calibrated probabilities.
-    """
-    return CalibratedClassifierCV(LinearSVC(**kwargs), cv=5, method="isotonic")
-
-
+# The 4 models we train and compare.
+# Each one approaches the prediction problem in a different way.
 MODEL_CLASSES = {
-    "logistic_regression": LogisticRegression,
-    "random_forest": RandomForestClassifier,
-    "xgboost": XGBClassifier,
-    "svm": _make_linear_svm,   # LinearSVC + isotonic calibration
-    "knn": KNeighborsClassifier,
+    "logistic_regression": LogisticRegression,   # Linear model — fast and easy to explain
+    "random_forest":       RandomForestClassifier, # Builds many trees and takes a majority vote
+    "xgboost":             XGBClassifier,          # Builds trees sequentially, each fixing the last
+    "knn":                 KNeighborsClassifier,   # Finds the K most similar customers and copies them
 }
 
-# Fixed params that Optuna doesn't search over
+# Fixed settings that Optuna does NOT search over — these are design decisions
+# we made once and keep constant across all experiments.
 FIXED_PARAMS = {
     "logistic_regression": {
-        "solver": "saga",
-        "max_iter": 2000,
-        "class_weight": "balanced",
+        "solver": "saga",       # Supports both L1 and L2 regularisation
+        "max_iter": 2000,       # Allow plenty of iterations to converge
+        "class_weight": "balanced",  # Automatically up-weights the minority class
         "random_state": SEED,
     },
-    "random_forest": {"class_weight": "balanced", "random_state": SEED, "n_jobs": -1},
+    "random_forest": {
+        "class_weight": "balanced",  # Same: minority class gets higher weight
+        "random_state": SEED,
+        "n_jobs": -1,  # Use all available CPU cores
+    },
     "xgboost": {
-        "scale_pos_weight": 7.9,
-        "eval_metric": "aucpr",
+        "eval_metric": "aucpr",  # Optimise precision-recall area during training
         "random_state": SEED,
         "n_jobs": -1,
-    },
-    "svm": {
-        # LinearSVC fixed params (no kernel/probability needed)
-        "class_weight": "balanced",
-        "random_state": SEED,
-        "max_iter": 5000,
     },
     "knn": {
+        # KNN has no built-in class balancing — imbalance is handled through
+        # threshold tuning at prediction time instead
         "n_jobs": -1,
-        # SMOTE-style imbalance handling not built in — rely on
-        # recall-tuned threshold selection at inference time
     },
 }
 
 
 def _search_space(trial: optuna.Trial, name: str) -> dict:
-    """Define Optuna search space per model."""
+    """
+    Tell Optuna what values to try for each model's key settings.
+
+    Optuna calls this once per trial, picks a combination, trains the model,
+    scores it with cross-validation, and then tries a smarter combination next.
+    After n_trials attempts it returns the settings that scored highest.
+    """
     if name == "logistic_regression":
         return {
+            # C = regularisation strength. Small C = simpler model, large C = fits harder.
             "C": trial.suggest_float("C", 1e-4, 10.0, log=True),
+            # L1 penalty sets some weights to exactly zero (useful for feature selection).
+            # L2 just shrinks all weights proportionally.
             "penalty": trial.suggest_categorical("penalty", ["l1", "l2"]),
         }
     elif name == "random_forest":
         return {
-            "n_estimators": trial.suggest_int("n_estimators", 100, 600, step=100),
-            "max_depth": trial.suggest_int("max_depth", 4, 18),
-            "min_samples_split": trial.suggest_int("min_samples_split", 5, 40),
-            "min_samples_leaf": trial.suggest_int("min_samples_leaf", 2, 15),
+            "n_estimators":     trial.suggest_int("n_estimators", 100, 600, step=100),  # Number of trees
+            "max_depth":        trial.suggest_int("max_depth", 4, 18),                   # How tall each tree grows
+            "min_samples_split": trial.suggest_int("min_samples_split", 5, 40),          # Min samples needed to split a node
+            "min_samples_leaf": trial.suggest_int("min_samples_leaf", 2, 15),            # Min samples allowed in a leaf
         }
     elif name == "xgboost":
         return {
-            "n_estimators": trial.suggest_int("n_estimators", 100, 800, step=100),
-            "max_depth": trial.suggest_int("max_depth", 3, 9),
-            "learning_rate": trial.suggest_float("learning_rate", 0.01, 0.3, log=True),
-            "subsample": trial.suggest_float("subsample", 0.6, 1.0),
-            "colsample_bytree": trial.suggest_float("colsample_bytree", 0.6, 1.0),
-            "reg_alpha": trial.suggest_float("reg_alpha", 1e-8, 10.0, log=True),
-            "reg_lambda": trial.suggest_float("reg_lambda", 1e-8, 10.0, log=True),
-        }
-    elif name == "svm":
-        # LinearSVC — l1 requires dual=False, l2 can use dual=True (faster)
-        penalty = trial.suggest_categorical("penalty", ["l1", "l2"])
-        return {
-            "C": trial.suggest_float("C", 1e-3, 100.0, log=True),
-            "penalty": penalty,
-            "dual": penalty == "l2",  # l1 requires dual=False
+            "n_estimators":     trial.suggest_int("n_estimators", 100, 800, step=100),
+            "max_depth":        trial.suggest_int("max_depth", 3, 9),
+            "learning_rate":    trial.suggest_float("learning_rate", 0.01, 0.3, log=True),  # How much each tree contributes
+            "subsample":        trial.suggest_float("subsample", 0.6, 1.0),                 # Fraction of rows used per tree
+            "colsample_bytree": trial.suggest_float("colsample_bytree", 0.6, 1.0),          # Fraction of features per tree
+            "reg_alpha":        trial.suggest_float("reg_alpha", 1e-8, 10.0, log=True),     # L1 regularisation
+            "reg_lambda":       trial.suggest_float("reg_lambda", 1e-8, 10.0, log=True),    # L2 regularisation
         }
     elif name == "knn":
         return {
-            "n_neighbors": trial.suggest_int("n_neighbors", 3, 50),
-            "weights": trial.suggest_categorical("weights", ["uniform", "distance"]),
-            "metric": trial.suggest_categorical("metric", ["euclidean", "manhattan", "minkowski"]),
+            "n_neighbors": trial.suggest_int("n_neighbors", 3, 50),  # How many neighbours to look at
+            "weights":     trial.suggest_categorical("weights", ["uniform", "distance"]),   # Equal vote vs weighted by closeness
+            "metric":      trial.suggest_categorical("metric", ["euclidean", "manhattan", "minkowski"]),  # How to measure "distance"
         }
-    raise ValueError(f"Unknown model: {name}")
+    raise ValueError(f"Unknown model name: '{name}'")
 
 
-def tune_model(name: str, X_train, y_train, n_trials: int = 30) -> dict:
+def tune_model(name: str, X_train, y_train, n_trials: int = 30, cv_n_jobs: int = -1) -> dict:
     """
     Run Optuna optimization for a given model.
+
+    Args:
+        cv_n_jobs: Passed to cross_val_score. Use 1 in test environments to
+                   avoid joblib multiprocessing issues on Windows.
 
     Returns dict with best_params, best_auc.
     """
     optuna.logging.set_verbosity(optuna.logging.WARNING)
 
+    # Compute class-imbalance ratio once so it can be used inside the objective
+    _extra_fixed: dict = {}
+    if name == "xgboost":
+        neg, pos = (y_train == 0).sum(), (y_train == 1).sum()
+        _extra_fixed["scale_pos_weight"] = round(neg / pos, 2)
+
     def objective(trial):
         search_params = _search_space(trial, name)
-        all_params = {**search_params, **FIXED_PARAMS[name]}
+        all_params = {**search_params, **FIXED_PARAMS[name], **_extra_fixed}
         model = MODEL_CLASSES[name](**all_params)
         pipeline = build_pipeline(model)
         scores = cross_val_score(
-            pipeline, X_train, y_train, cv=CV, scoring="roc_auc", n_jobs=-1
+            pipeline, X_train, y_train, cv=CV, scoring="roc_auc", n_jobs=cv_n_jobs
         )
         return scores.mean()
 
     study = optuna.create_study(direction="maximize", study_name=name)
     study.optimize(objective, n_trials=n_trials, show_progress_bar=True)
 
-    best_params = {**study.best_params, **FIXED_PARAMS[name]}
+    best_params = {**study.best_params, **FIXED_PARAMS[name], **_extra_fixed}
     logger.info(
         "%s → best AUC: %.4f | params: %s", name, study.best_value, study.best_params
     )

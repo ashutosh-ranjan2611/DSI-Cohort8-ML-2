@@ -4,61 +4,61 @@ from __future__ import annotations
 import pandas as pd
 import pytest
 
-from src.data.clean import clean_pipeline, clean_unknowns, drop_duration_for_production
+from src.clean import clean_data as clean_pipeline, clean_unknowns, drop_duration as drop_duration_for_production
 
 
-def test_unknowns_imputed_in_job(synthetic_bank_data):
-    cleaned = clean_unknowns(synthetic_bank_data)
+def test_unknowns_imputed_in_job(synthetic_data):
+    cleaned = clean_unknowns(synthetic_data)
     assert "unknown" not in cleaned["job"].values
 
 
-def test_unknowns_imputed_in_marital(synthetic_bank_data):
-    cleaned = clean_unknowns(synthetic_bank_data)
+def test_unknowns_imputed_in_marital(synthetic_data):
+    cleaned = clean_unknowns(synthetic_data)
     assert "unknown" not in cleaned["marital"].values
 
 
-def test_unknowns_imputed_in_housing(synthetic_bank_data):
-    cleaned = clean_unknowns(synthetic_bank_data)
+def test_unknowns_imputed_in_housing(synthetic_data):
+    cleaned = clean_unknowns(synthetic_data)
     assert "unknown" not in cleaned["housing"].values
 
 
-def test_unknowns_imputed_in_loan(synthetic_bank_data):
-    cleaned = clean_unknowns(synthetic_bank_data)
+def test_unknowns_imputed_in_loan(synthetic_data):
+    cleaned = clean_unknowns(synthetic_data)
     assert "unknown" not in cleaned["loan"].values
 
 
-def test_unknowns_kept_in_education(synthetic_bank_data):
-    cleaned = clean_unknowns(synthetic_bank_data)
+def test_unknowns_kept_in_education(synthetic_data):
+    cleaned = clean_unknowns(synthetic_data)
     # Education unknowns should be preserved
-    if "unknown" in synthetic_bank_data["education"].values:
+    if "unknown" in synthetic_data["education"].values:
         assert "unknown" in cleaned["education"].values
 
 
-def test_unknowns_kept_in_default(synthetic_bank_data):
-    cleaned = clean_unknowns(synthetic_bank_data)
-    if "unknown" in synthetic_bank_data["default"].values:
+def test_unknowns_kept_in_default(synthetic_data):
+    cleaned = clean_unknowns(synthetic_data)
+    if "unknown" in synthetic_data["default"].values:
         assert "unknown" in cleaned["default"].values
 
 
-def test_duration_dropped_in_production(synthetic_bank_data_with_duration):
-    result = drop_duration_for_production(synthetic_bank_data_with_duration)
+def test_duration_dropped_in_production(synthetic_with_duration):
+    result = drop_duration_for_production(synthetic_with_duration)
     assert "duration" not in result.columns
 
 
-def test_duration_not_dropped_when_absent(synthetic_bank_data):
+def test_duration_not_dropped_when_absent(synthetic_data):
     # Should not error if duration doesn't exist
-    result = drop_duration_for_production(synthetic_bank_data)
+    result = drop_duration_for_production(synthetic_data)
     assert "duration" not in result.columns
 
 
-def test_clean_pipeline_production(synthetic_bank_data_with_duration):
-    result = clean_pipeline(synthetic_bank_data_with_duration, production=True)
+def test_clean_pipeline_production(synthetic_with_duration):
+    result = clean_pipeline(synthetic_with_duration, production=True)
     assert "duration" not in result.columns
     assert "unknown" not in result["job"].values
 
 
-def test_clean_pipeline_benchmark(synthetic_bank_data_with_duration):
-    result = clean_pipeline(synthetic_bank_data_with_duration, production=False)
+def test_clean_pipeline_benchmark(synthetic_with_duration):
+    result = clean_pipeline(synthetic_with_duration, production=False)
     assert "duration" in result.columns
 
 

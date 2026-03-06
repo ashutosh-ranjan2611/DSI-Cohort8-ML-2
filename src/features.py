@@ -1,19 +1,14 @@
 """
-Feature engineering — PdaysTransformer, non-linear binning, encoding, scaling.
+Feature engineering — preparing the bank marketing data for our models.
 
-Design decisions:
-  - pdays 999 sentinel → binary flag + log transform
-  - education → ordinal (natural order exists)
-  - all other categoricals → one-hot
-  - numerics → StandardScaler (needed for LogReg, harmless for trees)
-  - NEW: Non-linear binning for features with known non-linear target relationships
-    (age, campaign, euribor3m) — improves LogReg significantly, neutral for trees
+What happens in this file:
+  1. PdaysTransformer  : fixes a tricky column (pdays uses 999 as a placeholder, not a real number)
+  2. build_preprocessor: scales numbers, encodes categories ready for sklearn
+  3. build_pipeline    : wraps everything into a single sklearn Pipeline
 
-Key insight from EDA:
-  - age: U-shaped relationship (young students & retirees subscribe more)
-  - campaign: diminishing returns after 3-5 calls
-  - euribor3m: different economic regimes (<2% vs 2-4% vs >4%)
-  These non-linear patterns are invisible to LogReg without binning.
+Why a Pipeline?
+  - Prevents data leakage: the scaler learns only from training data.
+  - Makes deployment easy: one object handles all pre-processing at prediction time.
 """
 
 from __future__ import annotations
@@ -63,11 +58,23 @@ NUMERIC_FEATURES = [
 ]
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# PDAYS TRANSFORMER (unchanged — already superior to binary-only approach)
-# ═══════════════════════════════════════════════════════════════════════════════
 class PdaysTransformer(BaseEstimator, TransformerMixin):
-    """Convert pdays sentinel (999=never contacted) into meaningful features."""
+    """
+    Fix the 'pdays' column before passing it to the model.
+
+    The raw 'pdays' value is tricky:
+      - 999 means the customer was NEVER contacted in a previous campaign.
+        It does NOT mean "999 days ago" — it's just a placeholder.
+      - Any other value (e.g. 6) means "last contacted 6 days ago".
+
+    Treating 999 as a real number would mislead the model completely.
+    Instead, we replace 'pdays' with two new, clearer columns:
+      - 'was_previously_contacted' : 1 if they were called before, 0 if not
+      - 'pdays_log'                : log(1 + days), set to 0 if never contacted
+
+    Using log-transform on days compresses the tails — the difference between
+    1 and 5 days matters more than the difference between 100 and 105 days.
+    """
 
     def fit(self, X, y=None):
         return self
@@ -86,93 +93,29 @@ class PdaysTransformer(BaseEstimator, TransformerMixin):
         return np.array(out + ["was_previously_contacted", "pdays_log"])
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# NON-LINEAR BINNING TRANSFORMER (NEW)
-# ═══════════════════════════════════════════════════════════════════════════════
-class NonLinearBinningTransformer(BaseEstimator, TransformerMixin):
+# -------------------------------------------------------------------------------
+# Pipeline builders
+# -------------------------------------------------------------------------------
+
+
+def build_preprocessor() -> ColumnTransformer:
     """
-    Add binned versions of numeric features with known non-linear relationships.
+    Build the ColumnTransformer that prepares features for the models.
 
-    Does NOT remove the original numeric columns — trees still benefit from raw values.
-    Adds new categorical bin columns that help LogReg capture non-linear patterns.
-
-    Bins are domain-driven (not arbitrary quantiles):
-      age:       young (<30), prime (30-45), middle (45-60), senior (60+)
-                 → U-shaped: students & retirees subscribe more
-      campaign:  low (1-2), moderate (3-5), high (6+)
-                 → Diminishing returns after 3-5 calls
-      euribor3m: low (<1.5), medium (1.5-3.5), high (3.5+)
-                 → Different macroeconomic regimes
+    Three types of features need different treatment:
+      - Numbers      : StandardScaler centres them around zero (required by Logistic Regression,
+                       harmless for tree models like Random Forest and XGBoost).
+      - Education    : OrdinalEncoder — there is a clear ranking from 'illiterate' up to
+                       'university.degree', so we assign 0, 1, 2 … instead of one-hot.
+      - All other categories : OneHotEncoder — no natural order, so each category gets
+                                its own binary 0/1 column.
     """
-
-    BIN_SPECS = {
-        "age": {
-            "bins": [0, 30, 45, 60, 100],
-            "labels": ["young", "prime", "middle", "senior"],
-        },
-        "campaign": {
-            "bins": [0, 2, 5, 100],
-            "labels": ["low", "moderate", "high"],
-        },
-        "euribor3m": {
-            "bins": [-1, 1.5, 3.5, 10],
-            "labels": ["low_rate", "mid_rate", "high_rate"],
-        },
-    }
-
-    def fit(self, X, y=None):
-        return self
-
-    def transform(self, X):
-        X = X.copy()
-        for col, spec in self.BIN_SPECS.items():
-            if col in X.columns:
-                X[f"{col}_bin"] = pd.cut(
-                    X[col],
-                    bins=spec["bins"],
-                    labels=spec["labels"],
-                    include_lowest=True,
-                ).astype(str)
-                # Handle any NaN from out-of-range values
-                X[f"{col}_bin"] = X[f"{col}_bin"].fillna(spec["labels"][-1])
-        return X
-
-    def get_feature_names_out(self, input_features=None):
-        new_cols = [
-            f"{col}_bin"
-            for col in self.BIN_SPECS
-            if input_features is None or col in input_features
-        ]
-        if input_features is None:
-            return np.array(new_cols)
-        return np.array(list(input_features) + new_cols)
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# PIPELINE BUILDERS
-# ═══════════════════════════════════════════════════════════════════════════════
-# Bin columns added by NonLinearBinningTransformer — treated as additional nominals
-BIN_FEATURES = ["age_bin", "campaign_bin", "euribor3m_bin"]
-
-
-def build_preprocessor(use_binning: bool = True) -> ColumnTransformer:
-    """
-    Build ColumnTransformer for numeric, ordinal, and nominal features.
-
-    Args:
-        use_binning: If True, include bin columns as additional one-hot features.
-                     Improves LogReg by ~2-4% AUC; neutral for tree models.
-    """
-    # After PdaysTransformer, pdays → was_previously_contacted + pdays_log
+    # After PdaysTransformer, the raw 'pdays' column is gone and replaced by
+    # 'was_previously_contacted' and 'pdays_log', so we adjust the numeric list.
     post_pdays_numeric = [f for f in NUMERIC_FEATURES if f != "pdays"] + [
         "was_previously_contacted",
         "pdays_log",
     ]
-
-    # Nominal features — optionally include bin columns
-    nominal_cols = list(NOMINAL_FEATURES)
-    if use_binning:
-        nominal_cols = nominal_cols + BIN_FEATURES
 
     return ColumnTransformer(
         transformers=[
@@ -207,7 +150,7 @@ def build_preprocessor(use_binning: bool = True) -> ColumnTransformer:
                         )
                     ]
                 ),
-                nominal_cols,
+                list(NOMINAL_FEATURES),
             ),
         ],
         remainder="drop",
@@ -215,27 +158,23 @@ def build_preprocessor(use_binning: bool = True) -> ColumnTransformer:
     )
 
 
-def build_pipeline(model: BaseEstimator, use_binning: bool = True) -> Pipeline:
+def build_pipeline(model: BaseEstimator) -> Pipeline:
     """
-    Full pipeline: PdaysTransform → NonLinearBinning → Preprocessing → Classifier.
+    Assemble the full 3-step sklearn Pipeline for a given classifier.
 
-    Args:
-        model: sklearn-compatible classifier
-        use_binning: If True, add domain-driven bins for non-linear features.
-                     Recommended for production; can disable for ablation studies.
+    Step 1 — pdays_transform : Fixes the sentinel 999 in the 'pdays' column.
+    Step 2 — preprocessor    : Scales numbers, encodes categories.
+    Step 3 — classifier      : The actual model (LR, RF, XGBoost, or KNN).
+
+    Using a Pipeline means:
+      - The scaler sees ONLY training data (no leakage from the test set).
+      - At prediction time, you just call pipeline.predict(X) — everything
+        is applied in the correct order automatically.
     """
-    steps = [
-        ("pdays_transform", PdaysTransformer()),
-    ]
-
-    if use_binning:
-        steps.append(("binning", NonLinearBinningTransformer()))
-
-    steps.extend(
-        [
-            ("preprocessor", build_preprocessor(use_binning=use_binning)),
+    return Pipeline(
+        steps=[
+            ("pdays_transform", PdaysTransformer()),
+            ("preprocessor", build_preprocessor()),
             ("classifier", model),
         ]
     )
-
-    return Pipeline(steps)

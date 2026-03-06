@@ -1,33 +1,27 @@
 """
-Evaluation — metrics, cost-optimal threshold, business impact, composite model selection.
+Model evaluation — metrics, cost-optimal threshold, and business impact.
 
-═══════════════════════════════════════════════════════════════════════════════
-BANKING ECONOMICS COST DERIVATION
-═══════════════════════════════════════════════════════════════════════════════
+This file answers three questions:
+  1. How well does the model separate subscribers from non-subscribers? (compute_metrics)
+  2. At what probability threshold should we start calling a customer? (find_optimal_threshold)
+  3. In real dollar terms, how much better is our model than random guessing? (business_cost_analysis)
+
+BANKING ECONOMICS USED THROUGHOUT
+==================================================
 When a customer places a term deposit, the bank earns via Net Interest Margin:
 
-  - Avg term deposit:       $10,000
-  - Bank pays depositor:     2.0% interest
-  - Bank lends funds at:     8.4% interest
-  - Net Interest Margin:     6.4% (8.4% − 2.0%)
-  - Annual NIM revenue:      $640 ($10,000 × 6.4%)
-  - Over 2-year avg term:    $1,280 lifetime revenue
+  Average term deposit = $10,000
+  Bank pays depositor  =  2.0% interest
+  Bank lends funds at  =  8.4% interest
+  Net Interest Margin  =  6.4% per year
+  Lifetime revenue     = $1,280 over a 2-year average term
 
-  Conservative FN cost:      $200  (accounts for <100% conversion, churn, partial deposits)
-  FP cost (wasted call):     $5    (agent time + telephony)
-  TP net value:              $195  ($200 LTV − $5 call cost)
-  TN:                        $0    (correctly skipped)
+  False Negative cost  = $200  (we miss a real subscriber — worst outcome)
+  False Positive cost  =  $5   (we waste a phone call)
+  True Positive value  = $200  (we correctly identify and call a subscriber)
 
-  Cost ratio:  FN/FP = 40:1 → Missing a subscriber is 40× costlier than a wasted call
-  Implication: Model should lean toward higher recall, accepting some false positives
-
-═══════════════════════════════════════════════════════════════════════════════
-MODEL SELECTION STRATEGY — Composite Weighted Scoring
-═══════════════════════════════════════════════════════════════════════════════
-  40% Net Profit       — the business outcome (most important)
-  25% Recall           — don't miss subscribers (FN is 40× costlier)
-  20% AUC-ROC          — overall discrimination ability
-  15% 1−Brier          — probability calibration quality
+  Cost ratio FN:FP = 40:1, so the model should lean toward high recall
+  (it is 40 times worse to miss a real subscriber than to make one extra call).
 """
 
 from __future__ import annotations
@@ -98,7 +92,20 @@ def get_cost_derivation_text() -> str:
 # METRICS
 # ═══════════════════════════════════════════════════════════════════════════════
 def compute_metrics(y_true, y_pred, y_prob) -> dict[str, float]:
-    """Compute full classification metric suite including calibration."""
+    """
+    Compute the standard set of classification metrics.
+
+    Each metric tells a different part of the story:
+      accuracy   : overall % correct (misleading when classes are imbalanced)
+      precision  : of all customers we called, what fraction subscribed?
+      recall     : of all real subscribers, what fraction did we catch?
+      f1         : harmonic mean of precision and recall
+      roc_auc    : how well does the model rank-order customers? (1.0 = perfect)
+      pr_auc     : precision-recall trade-off area (better than ROC for imbalanced data)
+      log_loss   : how confident and correct are the probability scores?
+      mcc        : Matthews Correlation Coefficient — a single balanced score
+      brier_score: average squared error on probabilities (lower = better calibrated)
+    """
     return {
         "accuracy":    float(accuracy_score(y_true, y_pred)),
         "precision":   float(precision_score(y_true, y_pred, zero_division=0)),
@@ -123,7 +130,16 @@ def find_optimal_threshold(
     value_tp: float = VALUE_TP,
     n_steps: int = 200,
 ) -> tuple[float, float]:
-    """Search for threshold that maximizes net business profit."""
+    """
+    Find the probability threshold that maximises net business profit on the test set.
+
+    How it works:
+      - By default sklearn classifies as 1 if probability >= 0.5.
+      - For this problem that is too conservative: a missed subscriber costs $200,
+        but a wasted call only costs $5, so we accept more false positives.
+      - We try every threshold from 0.05 to 0.95 in 200 steps and keep the one
+        that produces the highest net profit (TP * $195 - FP * $5 - FN * $200).
+    """
     best_t, best_profit = 0.5, -np.inf
 
     for t in np.linspace(0.05, 0.95, n_steps):
@@ -141,7 +157,15 @@ def find_optimal_threshold(
 # BUSINESS COST ANALYSIS
 # ═══════════════════════════════════════════════════════════════════════════════
 def business_cost_analysis(y_true, y_pred) -> dict[str, Any]:
-    """Translate confusion matrix into dollar impact with banking economics context."""
+    """
+    Translate the confusion matrix into dollar figures.
+
+    Returns a dict with:
+      - tp/fp/fn/tn   : Raw counts from the confusion matrix.
+      - net_profit    : Total dollar value (TP revenue - FP costs - FN costs).
+      - catch_rate    : Fraction of real subscribers we identified (= recall).
+      - call_efficiency: Fraction of calls that resulted in a subscription (= precision).
+    """
     tn, fp, fn, tp = confusion_matrix(y_true, y_pred).ravel()
     revenue = tp * (VALUE_TP - COST_FP)
     wasted = fp * COST_FP
@@ -170,178 +194,38 @@ def business_cost_analysis(y_true, y_pred) -> dict[str, Any]:
     }
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# COMPOSITE MODEL SELECTION
-# ═══════════════════════════════════════════════════════════════════════════════
-SELECTION_WEIGHTS = {
-    "net_profit": 0.40,
-    "test_recall": 0.25,
-    "test_roc_auc": 0.20,
-    "calibration": 0.15,
-}
-
-
-def composite_model_score(
-    comp_df: pd.DataFrame, weights: dict | None = None
-) -> pd.DataFrame:
-    """
-    Rank models using weighted composite score across multiple criteria.
-
-    Args:
-        comp_df: DataFrame with one row per model and metric columns.
-        weights: Optional weight dict overriding SELECTION_WEIGHTS.
-                 Pass alternate weights here instead of mutating the global.
-
-    Scoring:
-      1. Min-max normalize each metric to [0, 1]
-      2. Apply weights: profit 40%, recall 25%, AUC 20%, calibration 15%
-      3. Sum weighted scores → composite score
-      4. Rank by composite score (higher = better)
-    """
-    weights = weights or SELECTION_WEIGHTS
-    df = comp_df.copy()
-
-    metrics_config = {
-        "net_profit": {"col": "net_profit", "invert": False},
-        "test_recall": {"col": "test_recall", "invert": False},
-        "test_roc_auc": {"col": "test_roc_auc", "invert": False},
-        "calibration": {"col": "brier_score", "invert": True},
-    }
-
-    composite = np.zeros(len(df))
-
-    for metric_name, config in metrics_config.items():
-        col = config["col"]
-        if col not in df.columns:
-            logger.warning("Column %s not found, skipping %s", col, metric_name)
-            continue
-
-        values = df[col].astype(float)
-        if config["invert"]:
-            values = 1 - values
-
-        vmin, vmax = values.min(), values.max()
-        if vmax > vmin:
-            normalized = (values - vmin) / (vmax - vmin)
-        else:
-            normalized = pd.Series(1.0, index=values.index)
-
-        weight = weights[metric_name]
-        df[f"norm_{metric_name}"] = normalized.round(4)
-        composite += weight * normalized.values
-
-    df["composite_score"] = np.round(composite, 4)
-    df["overall_rank"] = df["composite_score"].rank(ascending=False).astype(int)
-
-    reasons = []
-    for _, row in df.iterrows():
-        strengths = []
-        if row.get("norm_net_profit", 0) >= 0.8:
-            strengths.append("top profit")
-        if row.get("norm_test_recall", 0) >= 0.8:
-            strengths.append("high recall")
-        if row.get("norm_test_roc_auc", 0) >= 0.8:
-            strengths.append("strong AUC")
-        if row.get("norm_calibration", 0) >= 0.8:
-            strengths.append("well calibrated")
-        reasons.append(", ".join(strengths) if strengths else "balanced")
-    df["strengths"] = reasons
-
-    return df.sort_values("composite_score", ascending=False)
-
+# -------------------------------------------------------------------------------
+# Model selection
+# -------------------------------------------------------------------------------
 
 def select_best_model(comp_df: pd.DataFrame) -> tuple[str, pd.DataFrame]:
-    """Select best model using composite scoring."""
-    scored = composite_model_score(comp_df)
-    best = scored.iloc[0]["model"]
+    """
+    Pick the best model: simply choose the one with the highest net profit.
+
+    Net profit directly reflects the business goal (maximise revenue from
+    term-deposit subscriptions, minus the cost of wasted calls and missed
+    subscribers), so it is the most honest single criterion.
+
+    Returns:
+        best_name (str)         : name of the winning model
+        comp_df (pd.DataFrame)  : the same table sorted by net_profit descending
+    """
+    # Sort the results table so the best model appears first
+    sorted_df = comp_df.sort_values("net_profit", ascending=False).reset_index(drop=True)
+    best_name = sorted_df.iloc[0]["model"]
 
     logger.info("")
-    logger.info("═══ COMPOSITE MODEL SELECTION ═══")
-    logger.info(
-        "  Weights: Profit=%.0f%% · Recall=%.0f%% · AUC=%.0f%% · Calibration=%.0f%%",
-        SELECTION_WEIGHTS["net_profit"] * 100,
-        SELECTION_WEIGHTS["test_recall"] * 100,
-        SELECTION_WEIGHTS["test_roc_auc"] * 100,
-        SELECTION_WEIGHTS["calibration"] * 100,
-    )
-    # FIX: Pre-format profit string to avoid %,.0f which Python's % operator
-    # doesn't support (the comma flag only works with str.format / f-strings)
-    for _, row in scored.iterrows():
-        marker = "→" if row["model"] == best else " "
+    logger.info("=== MODEL SELECTION (by Net Profit) ===")
+    for _, row in sorted_df.iterrows():
+        marker = ">>> WINNER" if row["model"] == best_name else "       "
         profit_str = f"${row['net_profit']:,.0f}"
         logger.info(
-            "  %s #%d %-22s │ composite=%.4f │ profit=%-12s  recall=%.3f  "
-            "auc=%.4f  brier=%.4f │ %s",
-            marker,
-            int(row["overall_rank"]),
-            row["model"],
-            row["composite_score"],
-            profit_str,
-            row["test_recall"],
-            row["test_roc_auc"],
-            row["brier_score"],
-            row.get("strengths", ""),
+            "  %s  %-22s | profit=%-12s  recall=%.3f  auc=%.4f",
+            marker, row["model"], profit_str, row["test_recall"], row["test_roc_auc"],
         )
-    logger.info("  ══════════════════════════════════════")
-    logger.info(
-        "  🏆 Selected: %s (composite score: %.4f)",
-        best,
-        scored.iloc[0]["composite_score"],
-    )
+    logger.info("  Selected: %s", best_name)
 
-    return best, scored
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# SENSITIVITY ANALYSIS
-# ═══════════════════════════════════════════════════════════════════════════════
-def selection_sensitivity_analysis(comp_df: pd.DataFrame) -> dict[str, str]:
-    """Check if the selected model changes under different selection criteria."""
-    results = {}
-
-    results["max_profit"] = comp_df.loc[comp_df["net_profit"].idxmax(), "model"]
-    results["max_auc"] = comp_df.loc[comp_df["test_roc_auc"].idxmax(), "model"]
-    results["max_recall"] = comp_df.loc[comp_df["test_recall"].idxmax(), "model"]
-    results["best_calibration"] = comp_df.loc[comp_df["brier_score"].idxmin(), "model"]
-    if "test_mcc" in comp_df.columns:
-        results["max_mcc"] = comp_df.loc[comp_df["test_mcc"].idxmax(), "model"]
-
-    scored = composite_model_score(comp_df)
-    results["composite"] = scored.iloc[0]["model"]
-
-    alt_weights = {
-        "profit_heavy": {
-            "net_profit": 0.60,
-            "test_recall": 0.20,
-            "test_roc_auc": 0.10,
-            "calibration": 0.10,
-        },
-        "recall_heavy": {
-            "net_profit": 0.25,
-            "test_recall": 0.45,
-            "test_roc_auc": 0.15,
-            "calibration": 0.15,
-        },
-        "balanced_equal": {
-            "net_profit": 0.25,
-            "test_recall": 0.25,
-            "test_roc_auc": 0.25,
-            "calibration": 0.25,
-        },
-    }
-
-    for profile_name, profile_weights in alt_weights.items():
-        # Pass weights as a parameter — never mutate the global SELECTION_WEIGHTS
-        scored_alt = composite_model_score(comp_df, weights=profile_weights)
-        results[profile_name] = scored_alt.iloc[0]["model"]
-
-    unique_winners = set(results.values())
-    if len(unique_winners) == 1:
-        logger.info("  ✅ Selection is ROBUST — same model wins under all criteria")
-    else:
-        logger.info("  ⚠️  Selection varies by criteria: %s", results)
-
-    return results
+    return best_name, sorted_df
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

@@ -18,7 +18,6 @@ dependencies = [
   # ── ML ─────────────────────────────────────────────────────────────────────
   "scikit-learn==1.8.0",
   "xgboost==3.2.0",
-  "lightgbm==4.6.0",
   "optuna==4.7.0",
   "joblib==1.5.3",
   "shap==0.50.0",
@@ -26,24 +25,10 @@ dependencies = [
   # ── Experiment tracking ────────────────────────────────────────────────────
   "mlflow==3.10.0",
 
-  # ── API serving ────────────────────────────────────────────────────────────
-  "fastapi==0.134.0",
-  "uvicorn[standard]==0.41.0",
-  "pydantic==2.12.5",
-  "python-multipart==0.0.22",
-  "slowapi==0.1.9",
-
   # ── Dashboard ─────────────────────────────────────────────────────────────
-  "streamlit==1.54.0",
+  "streamlit==1.55.0",
 
-  # ── Monitoring ────────────────────────────────────────────────────────────
-  "evidently==0.7.20",
-  "prometheus-client==0.24.1",
-
-  # ── Data validation ───────────────────────────────────────────────────────
-  "great-expectations==1.13.0",
-
-  # ── Visualisation ─────────────────────────────────────────────────────────
+  # ── Visualisation (notebooks) ─────────────────────────────────────────────
   "matplotlib==3.10.8",
   "seaborn==0.13.2",
 
@@ -58,16 +43,13 @@ dev = [
   # Testing
   "pytest==9.0.2",
   "pytest-cov==7.0.0",
-  "pytest-asyncio==1.3.0",
-  "httpx==0.28.1",          # test FastAPI endpoints via TestClient
-  # Load testing
-  "locust==2.43.3",
   # Linting / type checking
   "ruff==0.15.4",
   "mypy==1.19.1",
   # Notebooks
   "jupyter==1.1.1",
   "jupyterlab==4.5.5",
+  "ipykernel==6.25.0",
 ]
 
 [tool.ruff]
@@ -84,3 +66,4 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-v --cov=src --cov-report=term-missing"
+pythonpath = ["."]

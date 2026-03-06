@@ -313,23 +313,24 @@ def clean_data(df: pd.DataFrame, production: bool = True) -> pd.DataFrame:
     """
     Full cleaning pipeline:
       1. Check for NaN missing values (report)
-      2. Remove exact duplicates
-      3. Check cardinality of categorical features (report)
-      4. Handle outliers (clip at 1st/99th percentile)
-      5. Check skewness of numeric features (report)
-      6. Check multicollinearity (report)
-      7. Clean 'unknown' string values (impute or keep)
-      8. Drop duration column (production mode)
+      2. Drop duration column (production mode) — MUST happen before dedup so that
+         rows identical across all 20 real features are correctly recognised as duplicates
+      3. Remove exact duplicates
+      4. Check cardinality of categorical features (report)
+      5. Handle outliers (clip at 1st/99th percentile)
+      6. Check skewness of numeric features (report)
+      7. Check multicollinearity (report)
+      8. Clean 'unknown' string values (impute or keep)
     """
     logger.info("Starting data cleaning pipeline...")
     df = check_missing_values(df)
+    if production:
+        df = drop_duration(df)
     df = remove_duplicates(df)
     df = check_cardinality(df)
     df = handle_outliers(df, method="clip")
     df = check_skewness(df)
     df = check_multicollinearity(df)
     df = clean_unknowns(df)
-    if production:
-        df = drop_duration(df)
     logger.info("Cleaning complete: %d rows, %d columns", len(df), len(df.columns))
     return df
