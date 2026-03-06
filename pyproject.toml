@@ -26,7 +26,7 @@ dependencies = [
   "mlflow==3.10.0",
 
   # ── Dashboard ─────────────────────────────────────────────────────────────
-  "streamlit==1.54.0",
+  "streamlit==1.55.0",
 
   # ── Visualisation (notebooks) ─────────────────────────────────────────────
   "matplotlib==3.10.8",

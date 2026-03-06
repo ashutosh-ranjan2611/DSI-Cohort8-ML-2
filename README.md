@@ -104,15 +104,15 @@ We set out to answer four questions:
 
 **License:** CC BY 4.0
 
-| Property        | Value                                                        |
-| --------------- | ------------------------------------------------------------ |
-| Total records   | 41,188                                                       |
-| Features        | 20 input + 1 target                                          |
-| Target variable | `y` — did the client subscribe to a term deposit? (yes / no) |
-| Positive rate   | 11.3% (heavily imbalanced)                                   |
-| Time period     | May 2008 to November 2010                                    |
-| Geography       | Portugal                                                     |
-| File format     | CSV, semicolon-delimited, inside a nested ZIP archive        |
+| Property        | Value                                                                    |
+| --------------- | ------------------------------------------------------------------------ |
+| Total records   | 41,188                                                                   |
+| Features        | 20 input + 1 target                                                      |
+| Target variable | `y` — did the client subscribe to a term deposit? (yes / no)             |
+| Positive rate   | 11.7% (heavily imbalanced — after dropping `duration` and deduplication) |
+| Time period     | May 2008 to November 2010                                                |
+| Geography       | Portugal                                                                 |
+| File format     | CSV, semicolon-delimited, inside a nested ZIP archive                    |
 
 ### Feature Categories
 
@@ -141,13 +141,13 @@ We identified the following risks during our analysis and documented how we addr
 
 ### Data Quality Risks
 
-| Risk                                  | What We Found                                                                                                               | How We Handled It                                                                                                                                                                                                                                                                                          |
-| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Missing values coded as "unknown"** | Six columns contain "unknown" entries instead of NaN. The worst is `default` at 20.9%.                                      | For columns with few unknowns (`job`, `marital`, `housing`, `loan`), we imputed with the most common value. For `education` and `default`, we kept "unknown" as its own category because it may carry signal — a bank not knowing a customer's credit default status is itself informative.                |
-| **Class imbalance**                   | Only 11.3% of customers subscribed. A model that predicts "no" for everyone would be 88.7% accurate but completely useless. | We used class weighting in all models (`class_weight='balanced'` for scikit-learn models, `scale_pos_weight` for XGBoost) so the model penalizes misses on the minority class more heavily. We avoided synthetic oversampling (SMOTE) because it can inflate cross-validation scores with artificial data. |
-| **Outliers**                          | `campaign` (number of calls) has extreme values — some customers were called 40+ times. `previous` is heavily right-skewed. | We clip numeric features at the 1st and 99th percentiles. This reduces extreme value influence on logistic regression without removing rows (which would lose minority-class samples). Tree models are naturally robust to outliers.                                                                       |
-| **Duplicate rows**                    | Checked for exact duplicate records.                                                                                        | Duplicates are detected and removed automatically during cleaning.                                                                                                                                                                                                                                         |
-| **Multicollinearity**                 | `euribor3m`, `emp.var.rate`, and `nr.employed` are correlated above 0.9 — they all reflect the state of the economy.        | We report this but do not drop features. Tree models are unaffected by correlated inputs, and logistic regression uses L1 regularization which naturally zeroes out redundant features.                                                                                                                    |
+| Risk                                  | What We Found                                                                                                                                | How We Handled It                                                                                                                                                                                                                                                                                          |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Missing values coded as "unknown"** | Six columns contain "unknown" entries instead of NaN. The worst is `default` at 20.9%.                                                       | For columns with few unknowns (`job`, `marital`, `housing`, `loan`), we imputed with the most common value. For `education` and `default`, we kept "unknown" as its own category because it may carry signal — a bank not knowing a customer's credit default status is itself informative.                |
+| **Class imbalance**                   | Only 11.7% of customers subscribed (after cleaning). A model that predicts "no" for everyone would be 88.3% accurate but completely useless. | We used class weighting in all models (`class_weight='balanced'` for scikit-learn models, `scale_pos_weight` for XGBoost) so the model penalizes misses on the minority class more heavily. We avoided synthetic oversampling (SMOTE) because it can inflate cross-validation scores with artificial data. |
+| **Outliers**                          | `campaign` (number of calls) has extreme values — some customers were called 40+ times. `previous` is heavily right-skewed.                  | We clip numeric features at the 1st and 99th percentiles. This reduces extreme value influence on logistic regression without removing rows (which would lose minority-class samples). Tree models are naturally robust to outliers.                                                                       |
+| **Duplicate rows**                    | Checked for exact duplicate records.                                                                                                         | Duplicates are detected and removed automatically during cleaning.                                                                                                                                                                                                                                         |
+| **Multicollinearity**                 | `euribor3m`, `emp.var.rate`, and `nr.employed` are correlated above 0.9 — they all reflect the state of the economy.                         | We report this but do not drop features. Tree models are unaffected by correlated inputs, and logistic regression uses L1 regularization which naturally zeroes out redundant features.                                                                                                                    |
 
 ### Modeling Risks
 
@@ -176,7 +176,7 @@ We use four models — one interpretable baseline, two tree-based ensembles, and
 
 ### How We Pick the Best Model
 
-Accuracy is misleading on imbalanced data — a model that always predicts "no" gets 88.7% accuracy but catches zero subscribers. Instead, we select the model with the **highest net profit** on the test set.
+Accuracy is misleading on imbalanced data — a model that always predicts "no" gets 88.3% accuracy but catches zero subscribers. Instead, we select the model with the **highest net profit** on the test set.
 
 Net profit is calculated from the confusion matrix using real banking economics:
 

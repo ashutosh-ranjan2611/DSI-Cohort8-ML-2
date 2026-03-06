@@ -26,7 +26,7 @@ evidently==0.7.20
 prometheus-client==0.24.1
 
 # Dashboard
-streamlit==1.54.0
+streamlit==1.55.0
 
 # Data validation
 great-expectations==1.13.0
