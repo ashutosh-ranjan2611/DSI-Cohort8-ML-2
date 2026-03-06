@@ -29,6 +29,7 @@ cd DSI-Cohort8-ML-2
 ```bash
 # Create virtual environment with Python 3.12
 uv venv .venv --python 3.12
+NOTE-Be careful to create this uv in same location as other uv from earlier in your system
 
 # Activate — macOS / Linux
 source .venv/bin/activate
