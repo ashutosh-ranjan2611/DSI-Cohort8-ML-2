@@ -18,13 +18,11 @@
 
 ## Table of Contents
 
-- [Executive Summary](#executive-summary)
 - [Project Overview and Purpose](#project-overview-and-purpose)
 - [Business Problem](#business-problem)
 - [Business Objectives and Goals](#business-objectives-and-goals)
 - [Dataset Details](#dataset-details)
 - [Exploratory Data Analysis (EDA)](#exploratory-data-analysis-eda)
-- [Summary: Data Cleaning and Preprocessing](#summary-data-cleaning-and-preprocessing)
 - [Risks and Unknowns](#risks-and-unknowns)
 - [How We Approached the Analysis](#how-we-approached-the-analysis)
 - [Handling Imbalanced Data](#handling-imbalanced-data)
@@ -32,12 +30,11 @@
 - [Key Results](#key-results)
 - [Pipeline Architecture](#pipeline-architecture)
 - [Repository Structure](#folder-reference)
-- [Local Setup](#local-setup)
+- [Local Setup and Running the App](#local-setup)
 - [Model Deployment and Interpretation](#model-deployment-and-interpretation)
-- [Requirements and Technology Stack](#requirements-and-technology-stack)
-- [Installation and Running the App](#installation-and-running-the-app)
+- [Technology Stack](#technology-stack)
 - [Team Roles and Responsibilities](#team-roles-and-responsibilities)
-- [Reflection Videos](#reflection-videos)
+- [Team Videos](#team-videos)
 - [Conclusion and Future Directions](#conclusion-and-future-directions)
 - [Acknowledgments](#acknowledgments)
 
@@ -80,6 +77,11 @@ We did not pick $200 and $5 arbitrarily. We derived them from actual banking eco
 | Conservative per-subscriber value (FN cost) | $200    | Adjusted down from $1,280 to account for conversion uncertainty, early withdrawal, and customer churn |
 | Call cost (FP cost)                         | $5      | Agent time plus telephony infrastructure                                                              |
 | Cost ratio (FN to FP)                       | 40:1    | $200 / $5                                                                                             |
+
+<p align="center">
+  <img src="reports/figures/Business_Economics.png" alt="Business Economics" width="90%">
+  <br><em>Banking economics — cost derivation for false negatives ($200) and false positives ($5)</em>
+</p>
 
 ---
 
@@ -155,53 +157,19 @@ The target variable `y` is heavily imbalanced:
 
 | Class                  | Count  | Percentage |
 | ---------------------- | ------ | ---------- |
-| No (did not subscribe) | 36,548 | 88.7%      |
+| No (did not subscribe) | 36,548 | 88.3%      |
 | Yes (subscribed)       | 4,640  | 11.7%      |
 
 <p align="center">
-  <img src="reports/figures/01_target_distribution.png" alt="Target Variable Distribution" width="85%">
-  <br><em>Class distribution — 88.7% non-subscribers vs 11.7% subscribers</em>
+  <img src="reports/figures/Dataset_Overview.png" alt="Target Variable Distribution" width="90%">
+  <br><em>Class distribution — 88.3% non-subscribers vs 11.7% subscribers</em>
 </p>
 
-This severe imbalance means a naive model predicting "no" for everyone achieves 88.7% accuracy but catches zero subscribers. We addressed this with class weighting and cost-optimal threshold tuning (see [Handling Imbalanced Data](#handling-imbalanced-data)).
-
-### Numeric Feature Overview
-
-| Feature        | Mean  | Min   | Max   | Notes                                               |
-| -------------- | ----- | ----- | ----- | --------------------------------------------------- |
-| age            | 40.0  | 17    | 98    | Wide range; U-shaped relationship with subscription |
-| campaign       | 2.57  | 1     | 56    | Right-skewed; diminishing returns after ~5 calls    |
-| pdays          | 962.5 | 0     | 999   | 999 = never previously contacted (sentinel value)   |
-| previous       | 0.17  | 0     | 7     | Most customers have zero prior contacts             |
-| emp.var.rate   | 0.08  | -3.4  | 1.4   | Employment variation rate (quarterly)               |
-| cons.price.idx | 93.6  | 92.2  | 94.8  | Consumer price index (monthly)                      |
-| cons.conf.idx  | -40.5 | -50.8 | -26.9 | Consumer confidence index (monthly)                 |
-| euribor3m      | 3.62  | 0.63  | 5.04  | 3-month Euribor rate — strong predictor             |
-| nr.employed    | 5167  | 4964  | 5228  | Number of employees (quarterly)                     |
+This severe imbalance means a naive model predicting "no" for everyone achieves 88.3% accuracy but catches zero subscribers. We addressed this with class weighting and cost-optimal threshold tuning (see [Handling Imbalanced Data](#handling-imbalanced-data)).
 
 <p align="center">
-  <img src="reports/figures/Numerical_Feature.png" alt="Numerical Feature Distributions" width="85%">
+  <img src="reports/figures/Numerical_Feature.png" alt="Numerical Feature Distributions" width="90%">
   <br><em>Numerical feature distributions across the dataset</em>
-</p>
-
-### Key EDA Findings
-
-- **Duration is a leaky feature:** Call duration is the strongest predictor of subscription, but it is only known after the call ends. Including it would inflate metrics by 15–20 percentage points. We dropped it from all production models (see [The Duration Problem](#the-duration-problem)).
-- **Macroeconomic features dominate:** `euribor3m`, `emp.var.rate`, and `nr.employed` are among the top predictors. When interest rates are low and the economy is uncertain, customers are more receptive to safe savings products.
-- **High multicollinearity among economic indicators:** `euribor3m`, `emp.var.rate`, and `nr.employed` are correlated above 0.9. We report this but do not drop features — tree models handle collinearity naturally, and Logistic Regression uses L1 regularization.
-- **Contact history matters:** Customers with a successful previous campaign outcome (`poutcome = success`) are far more likely to subscribe again.
-- **Age has a U-shaped pattern:** Young students and older retirees subscribe at higher rates than middle-aged working adults.
-- **Campaign fatigue:** Subscription probability decreases after approximately 5 contact attempts in the same campaign.
-- **Outliers present:** `campaign` has extreme values (up to 56 calls). We clip numeric features at the 1st and 99th percentiles during preprocessing.
-
-<p align="center">
-  <img src="reports/figures/Skewed_Data.png" alt="Feature Distributions" width="90%">
-  <br><em>Distribution of numeric features — note right-skewed campaign and the 999 sentinel in pdays</em>
-</p>
-
-<p align="center">
-  <img src="reports/figures/Multicollinearity-Data-Leakage.png" alt="Multicollinearity and Data Leakage" width="85%">
-  <br><em>Multicollinearity among economic indicators and data leakage analysis (duration excluded)</em>
 </p>
 
 <p align="center">
@@ -210,91 +178,19 @@ This severe imbalance means a naive model predicting "no" for everyone achieves 
 </p>
 
 <p align="center">
-  <img src="reports/figures/Correlation_Matrix.png" alt="Correlation Matrix" width="80%">
-  <br><em>Correlation matrix — euribor3m, emp.var.rate and nr.employed are highly collinear (&gt;0.9)</em>
-</p>
-
-<p align="center">
   <img src="reports/figures/04_monthly_patterns.png" alt="Monthly Contact Patterns" width="80%">
   <br><em>Monthly subscription patterns — May dominates call volume but March and December have highest conversion rates</em>
 </p>
-
-### Categorical Variables
-
-- **job**: 12 categories (admin, blue-collar, technician, services, management, retired, entrepreneur, self-employed, housemaid, unemployed, student, unknown)
-- **marital**: married, single, divorced, unknown
-- **education**: 8 levels from illiterate to university degree + unknown
-- **default / housing / loan**: Binary (yes / no / unknown)
-- **contact**: cellular or telephone
-- **month**: Campaign contact month (May through November dominate)
-- **day_of_week**: Day of contact (Mon–Fri)
-- **poutcome**: Previous campaign outcome (nonexistent, failure, success)
-
-> **Note:** Categorical variables are encoded during feature engineering — ordinal encoding for `education` (natural order) and one-hot encoding for all other nominal features.
 
 <p align="center">
   <img src="reports/figures/02_subscription_by_job.png" alt="Subscription Rate by Job" width="80%">
   <br><em>Subscription rate by job category — students and retired customers convert at significantly higher rates</em>
 </p>
 
----
-
-## Summary: Data Cleaning and Preprocessing
-
-The dataset underwent extensive cleaning and transformation to ensure quality input for modelling. The full implementation is in [`src/clean.py`](src/clean.py). Below are the key steps:
-
-### 1. Handling Missing and Invalid Data
-
-- Verified that there are **no null values** in the dataset.
-- Identified that `pdays = 999` is a sentinel value meaning "never previously contacted" — not a missing value. This is handled during feature engineering by `PdaysTransformer` (see [Model Development](#model-development)).
-- The string `"unknown"` appears in six categorical columns instead of NaN.
-
-### 2. Column-Specific Unknown Handling
-
-We applied a deliberate, per-column strategy for unknown values:
-
-| Column      | Unknown Rate | Strategy                     | Rationale                                                                                             |
-| ----------- | ------------ | ---------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `job`       | 0.8%         | Mode imputation              | Low unknown rate; "admin" is the most common job                                                      |
-| `marital`   | 0.2%         | Mode imputation              | Very few unknowns; minimal impact                                                                     |
-| `housing`   | 2.4%         | Mode imputation              | Moderate unknown rate; binary feature                                                                 |
-| `loan`      | 2.4%         | Mode imputation              | Moderate unknown rate; binary feature                                                                 |
-| `education` | 4.2%         | Keep "unknown" as a category | Unknowns may carry signal — a customer whose education level is not on file may differ systematically |
-| `default`   | 20.9%        | Keep "unknown" as a category | High unknown rate; a bank not knowing a customer's credit default status is itself informative        |
-
 <p align="center">
-  <img src="reports/figures/Missing_Values_Unknown_Placeholders.png" alt="Unknown Values by Column" width="80%">
-  <br><em>Proportion of "unknown" entries per column — default (21%) is kept as a category; others are mode-imputed</em>
+  <img src="reports/figures/EDA_Classification_Who_will_Say_Yes.png" alt="EDA Classification — Who Will Say Yes?" width="85%">
+  <br><em>EDA classification overview — key customer segments most likely to subscribe</em>
 </p>
-
-### 3. Outlier Treatment
-
-- Clipped numeric features at the **1st and 99th percentiles** to reduce extreme value influence.
-- This approach preserves row count (important for a dataset with only 11.3% positive class) while limiting the effect of outliers on Logistic Regression. Tree-based models are naturally robust to outliers.
-
-<p align="center">
-  <img src="reports/figures/Outlier.png" alt="Outlier Boxplots" width="85%">
-  <br><em>Boxplots before and after clipping — extreme values in campaign and pdays are capped at the 1st/99th percentile</em>
-</p>
-
-### 4. Duplicate Removal
-
-- Detected and removed exact duplicate rows automatically.
-- In production mode, `duration` is dropped **before** deduplication to avoid creating false duplicates (rows that differ only in call duration).
-
-### 5. Duration Column — Leakage Guard
-
-- Dropped the `duration` feature from all production models.
-- Duration is only known after the phone call ends, so including it would be data leakage — the model would look excellent on paper but be useless for pre-call targeting.
-- The UCI dataset documentation explicitly warns about this.
-
-### 6. Data Quality Diagnostics
-
-The cleaning pipeline also generates diagnostic reports (logged to console during pipeline execution):
-
-- **Skewness check:** Flags features with skewness > 2 or < -2.
-- **Multicollinearity report:** Identifies feature pairs with Pearson correlation > 0.9.
-- **Cardinality report:** Flags categorical columns with very high or very low unique value counts.
 
 ---
 
@@ -312,6 +208,30 @@ We identified the following risks during our analysis and documented how we addr
 | **Duplicate rows**                    | Checked for exact duplicate records.                                                                                                         | Duplicates are detected and removed automatically during cleaning.                                                                                                                                                                                                                                         |
 | **Multicollinearity**                 | `euribor3m`, `emp.var.rate`, and `nr.employed` are correlated above 0.9 — they all reflect the state of the economy.                         | We report this but do not drop features. Tree models are unaffected by correlated inputs, and logistic regression uses L1 regularization which naturally zeroes out redundant features.                                                                                                                    |
 
+<p align="center">
+  <img src="reports/figures/Missing_Values_Unknown_Placeholders.png" alt="Unknown Values by Column" width="95%">
+  <br><em>Proportion of "unknown" entries per column — default (21%) is kept as a category; others are mode-imputed</em>
+</p>
+
+<p align="center">
+  <img src="reports/figures/Class_Imbalance_Analysis.png" alt="Class Imbalance Analysis" width="90%">
+  <br><em>Class imbalance analysis — 88.7% non-subscribers vs 11.3% subscribers</em>
+</p>
+
+<p align="center">
+  <img src="reports/figures/Outlier.png" alt="Outlier Boxplots" width="90%">
+  <br><em>Boxplots before and after clipping — extreme values in campaign and pdays are capped at the 1st/99th percentile</em>
+</p>
+
+<p align="center">
+  <img src="reports/figures/Skewed_Data.png" alt="Feature Distributions" width="90%">
+  <br><em>Distribution of numeric features — note right-skewed campaign and the 999 sentinel in pdays</em>
+</p>
+<p align="center">
+  <img src="reports/figures/Correlation_Matrix.png" alt="Correlation Matrix" width="90%">
+  <br><em>Correlation matrix — euribor3m, emp.var.rate and nr.employed are highly collinear (&gt;0.9)</em>
+</p>
+
 ### Modeling Risks
 
 | Risk                                 | Impact                                                                                                                                                                                                                     | Mitigation                                                                                                                                                                                            |
@@ -321,6 +241,21 @@ We identified the following risks during our analysis and documented how we addr
 | **Cost assumption sensitivity**      | Our profit calculations depend on the $200 FN and $5 FP estimates. If these are wrong, the "best" model might change.                                                                                                      | We use conservative industry estimates ($5 call cost, $200 LTV) and select by maximum net profit. The estimates are clearly documented so they can be adjusted if better figures are available.       |
 | **Economic regime change**           | The dataset covers 2008-2010 (during and after the financial crisis). Models trained on this period may not generalize to fundamentally different economic conditions.                                                     | We include macroeconomic features (Euribor rate, employment) so the model can adapt to changing conditions. However, we flag that retraining would be needed if deployed in a different economic era. |
 | **Non-linear feature relationships** | Age has a U-shaped relationship with subscription (young students and older retirees subscribe more than middle-aged working adults). Campaign calls show diminishing returns. Standard linear models miss these patterns. | Tree-based models (Random Forest, XGBoost) handle non-linearity automatically. Logistic Regression uses one-hot encoding and numerical scaling; the pipeline preprocessor handles both transparently. |
+
+<p align="center">
+  <img src="reports/figures/Non-Linear-Subscription-Pattern.png" alt="Non-Linear Subscription Pattern" width="90%">
+  <br><em>Non-linear subscription patterns — age and campaign fatigue effects on subscription probability</em>
+</p>
+
+<p align="center">
+  <img src="reports/figures/Linear_NonLinear_Feature.png" alt="Linear and Non-Linear Feature Relationships" width="85%">
+  <br><em>Linear vs non-linear feature relationships with subscription outcome</em>
+</p>
+
+<p align="center">
+  <img src="reports/figures/Multicollinearity-Data-Leakage.png" alt="Multicollinearity and Data Leakage" width="85%">
+  <br><em>Multicollinearity among economic indicators and data leakage analysis (duration excluded)</em>
+</p>
 
 ---
 
@@ -388,9 +323,19 @@ This approach gives us **96–100% recall** on the test set - meaning we catch n
 
 We developed a streamlined, modular pipeline to handle preprocessing and model training end-to-end. The full implementation done in [`scripts/run_pipeline.py`](scripts/run_pipeline.py).
 
+<p align="center">
+  <img src="reports/figures/data_flow.png" alt="Model End-to-End Development Data Flow" width="90%">
+  <br><em>End-to-end model development data flow — from raw data to production model</em>
+</p>
+
 ### Preprocessing Pipeline
 
 All feature transformations are wrapped inside a scikit-learn `Pipeline` to prevent data leakage and ensure reproducibility:
+
+<p align="center">
+  <img src="reports/figures/preprocessing_pipeline_detail.png" alt="Preprocessing Pipeline Detail" width="90%">
+  <br><em>Detailed preprocessing pipeline — PdaysTransformer → ColumnTransformer → Classifier</em>
+</p>
 
 **Step 1 - PdaysTransformer (custom sklearn transformer):**
 
@@ -419,6 +364,11 @@ The final stage of the pipeline is the classifier itself. The entire pipeline (P
 | Random Forest       | Optuna (30 trials) - n_estimators, max_depth, min_samples_split/leaf              | `class_weight='balanced'`   | 100–500 trees; max_depth 5–30                     |
 | XGBoost             | Optuna (30 trials) - max_depth, learning_rate, n_estimators, subsample, colsample | `scale_pos_weight` (auto)   | Eval metric: AUC-PR; tree_method: hist            |
 | KNN                 | Optuna (30 trials) - n_neighbors, weights, metric                                 | N/A (threshold tuning only) | n_neighbors 3–50; distance or uniform weights     |
+
+<p align="center">
+  <img src="reports/figures/Before_And_After_Hypertuning.png" alt="Before and After Hyperparameter Tuning" width="90%">
+  <br><em>Model performance before and after Optuna hyperparameter tuning</em>
+</p>
 
 All hyperparameter tuning uses **5-fold stratified cross-validation** with `roc_auc` as the scoring metric. Results are logged to **MLflow** for experiment tracking.
 
@@ -572,16 +522,6 @@ DSI-Cohort8-ML-2/
 
 ---
 
-## Model Visualisations
-
-Quick access to the full set of model and business-impact visuals is available in the project docs:
-
-- [Model Visualisations (full gallery)](docs/model_visuals.md)
-
-Below is a thumbnail for the model comparison chart; open the gallery for the complete set.
-
----
-
 ## Local Setup
 
 > Full setup instructions, pipeline execution, and dashboard launch: see **[docs/setup.md](docs/setup.md)**
@@ -596,13 +536,6 @@ After completing data analysis, preprocessing, and model training, we made our m
 
 We deployed the best-performing model (Logistic Regression, Optuna-tuned) using **Streamlit** with serialised pickle files. This approach gives us a clean, interactive web application that marketing professionals can use without any ML background.
 
-Our deployment follows a straightforward architecture:
-
-- **Model artifacts:** Saved as scikit-learn pipeline files using `.pkl`
-- **Preprocessing pipeline:** All encoders and scalers are embedded inside the pipeline - a single `.pkl` file handles everything from raw input to prediction
-- **Threshold configuration:** Cost-optimal threshold stored in `models/threshold.json`
-- **Interactive interface:** Real-time prediction with user-friendly inputs and visual explanations
-
 ### Dashboard Tabs
 
 The Streamlit app (`app/main.py`) provides five tabs tailored to different stakeholders:
@@ -611,6 +544,46 @@ The Streamlit app (`app/main.py`) provides five tabs tailored to different stake
 | ------------------ | --------------- | ---------------------------------------------------------------------------------------------------------------------- |
 | **Predict Client** | Analysts        | Enter a single customer's profile → get YES/NO prediction with SHAP waterfall showing which factors drove the decision |
 | **Batch Predict**  | Operations team | Upload a CSV/Excel file or paste a URL → bulk-score hundreds of customers → download ranked lead list                  |
+
+---
+
+**Application Interface**
+
+<p align="center">
+  <img src="reports/figures/Streamlit_Dashboard.png" alt="Streamlit Dashboard" width="85%">
+  <br><em>Streamlit dashboard — main view</em>
+</p>
+
+**Prediction Result**
+
+<p align="center">
+  <img src="reports/figures/Streamlit_Dashboard_Result.png" alt="Streamlit Dashboard Result" width="85%">
+  <br><em>Single customer prediction result</em>
+</p>
+
+---
+
+**Batch Prediction - CSV Upload and URL Input**
+
+<p align="center">
+  <img src="reports/figures/Streamlit_Dashboard_CSV.png" alt="Streamlit Dashboard CSV Upload" width="85%">
+  <br><em>Batch predict — CSV file upload</em>
+</p>
+
+<p align="center">
+  <img src="reports/figures/Streamlit_Dashboard_CSV_Result.png" alt="Streamlit Dashboard CSV Result" width="85%">
+  <br><em>Batch predict — scored results from CSV upload</em>
+</p>
+
+<p align="center">
+  <img src="reports/figures/Streamlit_Dashboard_URL.png" alt="Streamlit Dashboard URL Input" width="85%">
+  <br><em>Batch predict — URL input mode</em>
+</p>
+
+<p align="center">
+  <img src="reports/figures/Streamlit_Dashboard_URL_Result.png" alt="Streamlit Dashboard URL Result" width="85%">
+  <br><em>Batch predict — scored results from URL input</em>
+</p>
 
 ### Batch Prediction
 
@@ -625,7 +598,7 @@ This enables marketing teams to pre-screen entire customer segments before launc
 
 ---
 
-## Requirements and Technology Stack
+## Technology Stack
 
 This project relies on a suite of Python libraries and frameworks that support end-to-end data science workflows:
 
@@ -664,8 +637,6 @@ This project relies on a suite of Python libraries and frameworks that support e
 - **mypy**
 - **Jupyter** + **JupyterLab**
 
-> **Installation:** All core dependencies are managed via `pyproject.toml`. Install with `uv sync --active` or `pip install -r requirements.txt`. Development extras with `uv pip install -e ".[dev]"`.
-
 ---
 
 ## Team Roles and Responsibilities
@@ -679,15 +650,9 @@ Our team of four split the work across the major components of the project. Whil
 | **Pavan**           | Evaluation and explainability                      | Designing the composite model selection framework with the weighted scoring approach. Building the banking economics cost derivation, threshold optimization, sensitivity analysis, and recall trade-off analysis. Implementing SHAP explainability with business-friendly feature labels. |
 | **Ashutosh Ranjan** | Integration, Dashboard, documentation, and testing | Will design and develop end-to-end final code for the project. Building the Streamlit dashboard with five stakeholder tabs (Executive Summary, Call Centre Operations, Model and Data Science, Predict Client, Batch Predict).                                                             |
 
-### How We Collaborated
-
-- All code changes went through pull requests on GitHub with at least one reviewer before merging.
-- We held weekly standups to sync on progress and blockers.
-- Major design decisions were discussed and agreed upon as a team before implementation.
-
 ---
 
-## Reflection Videos
+## Team Videos
 
 #### _place holder to be updated in future_
 
@@ -711,6 +676,11 @@ This project demonstrates how supervised machine learning can transform bank mar
 - Created a **modular, pip-installable Python package** (6 src/ modules) with proper separation of concerns, type hints, and docstrings
 - Implemented a **46-test pytest suite** with synthetic fixtures that run independently of raw data files
 - Tracked all experiments via **MLflow** for reproducibility and auditability
+
+<p align="center">
+  <img src="reports/figures/Business_Story.png" alt="Business Story" width="90%">
+  <br><em>Business impact story — translating model performance into measurable outcomes</em>
+</p>
 
 ### Next Steps
 
