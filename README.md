@@ -174,21 +174,6 @@ This severe imbalance means a naive model predicting "no" for everyone achieves 
 </p>
 
 <p align="center">
-  <img src="reports/figures/07_age_distribution.png" alt="Age Distribution by Subscription" width="80%">
-  <br><em>Age distribution — U-shaped subscription pattern (students and retirees subscribe at higher rates)</em>
-</p>
-
-<p align="center">
-  <img src="reports/figures/04_monthly_patterns.png" alt="Monthly Contact Patterns" width="80%">
-  <br><em>Monthly subscription patterns — May dominates call volume but March and December have highest conversion rates</em>
-</p>
-
-<p align="center">
-  <img src="reports/figures/02_subscription_by_job.png" alt="Subscription Rate by Job" width="80%">
-  <br><em>Subscription rate by job category — students and retired customers convert at significantly higher rates</em>
-</p>
-
-<p align="center">
   <img src="reports/figures/EDA_Classification_Who_will_Say_Yes.png" alt="EDA Classification — Who Will Say Yes?" width="85%">
   <br><em>EDA classification overview — key customer segments most likely to subscribe</em>
 </p>
@@ -629,14 +614,15 @@ This project relies on a suite of Python libraries and frameworks that support e
 ### Serialisation and I/O
 
 - **pickle**
-- **openpyxl** / **et-xmlfile**
 
 ### Development and Testing (optional)
 
-- **pytest** + **pytest-cov**
-- **ruff**
-- **mypy**
-- **Jupyter** + **JupyterLab**
+- **pytest**
+- **Jupyter Notebook**
+
+### Version Control
+
+- **GitHub** (for version control)
 
 ---
 
