@@ -36,6 +36,7 @@
 - [Team Roles and Responsibilities](#team-roles-and-responsibilities)
 - [Team Videos](#team-videos)
 - [Conclusion and Future Directions](#conclusion-and-future-directions)
+- [Documentation](#component-documentation)
 - [Acknowledgments](#acknowledgments)
 
 ---
@@ -692,6 +693,19 @@ This project demonstrates how supervised machine learning can transform bank mar
 - **A/B testing framework:** Design an experiment to compare model-targeted campaigns versus random-selection campaigns to validate real-world lift
 
 > The groundwork is set for scaled deployment, continuous monitoring, and iterative improvement - turning predictive insights into sustainable business impact.
+
+---
+
+## Component Documentation
+
+Detailed README files are available for each major component of the project:
+
+| Component    | README                                 | Description                                                             |
+| ------------ | -------------------------------------- | ----------------------------------------------------------------------- |
+| **app/**     | [app/README.md](app/README.md)         | Streamlit dashboard — how to run, tabs, model artifacts required        |
+| **scripts/** | [scripts/README.md](scripts/README.md) | Pipeline orchestrator and setup scripts — usage, flags, outputs         |
+| **src/**     | [src/README.md](src/README.md)         | Core pipeline modules — ingest, clean, split, features, train, evaluate |
+| **tests/**   | [tests/README.md](tests/README.md)     | pytest unit test suite — how to run, fixture details, coverage summary  |
 
 ---
 
