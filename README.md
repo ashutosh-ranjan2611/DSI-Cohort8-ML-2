@@ -43,15 +43,6 @@
 
 ---
 
-### Business / CFO Visuals
-
-<p align="center">
-  <img src="reports/figures/CFO_Summary.png" alt="CFO Summary" width="45%">
-  &nbsp;&nbsp;
-  <img src="reports/figures/ROI.png" alt="ROI Breakdown" width="45%">
-  <br><em>Executive summary visuals: CFO net-profit summary and ROI breakdown.</em>
-</p>
-
 ## Project Overview and Purpose
 
 This project tackles a real-world problem that banks face every day: figuring out which customers to call during a marketing campaign. Right now, banks call almost everyone on their list, which means most calls go to people who will never sign up. That wastes time, money, and burns out call centre staff.
