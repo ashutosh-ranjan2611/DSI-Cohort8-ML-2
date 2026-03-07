@@ -46,9 +46,9 @@
 ### Business / CFO Visuals
 
 <p align="center">
-  <img src="reports/Ml model pic/CFO_Summary.png" alt="CFO Summary" width="45%">
+  <img src="reports/figures/CFO_Summary.png" alt="CFO Summary" width="45%">
   &nbsp;&nbsp;
-  <img src="reports/Ml model pic/ROI.png" alt="ROI Breakdown" width="45%">
+  <img src="reports/figures/ROI.png" alt="ROI Breakdown" width="45%">
   <br><em>Executive summary visuals: CFO net-profit summary and ROI breakdown.</em>
 </p>
 
@@ -209,7 +209,7 @@ This severe imbalance means a naive model predicting "no" for everyone achieves 
 </p>
 
 <p align="center">
-  <img src="reports/Ml model pic/Multicollinearity-Data-Leakage.png" alt="Multicollinearity and Data Leakage" width="85%">
+  <img src="reports/figures/Multicollinearity-Data-Leakage.png" alt="Multicollinearity and Data Leakage" width="85%">
   <br><em>Multicollinearity among economic indicators and data leakage analysis (duration excluded)</em>
 </p>
 
@@ -447,7 +447,7 @@ All hyperparameter tuning uses **5-fold stratified cross-validation** with `roc_
 ✔ Winner selected by highest net profit. Threshold is optimised per model on the validation set using business cost analysis (FN cost = $200, FP cost = $5).
 
 <p align="center">
-  <img src="reports/Ml model pic/Model_Compare.png" alt="Model Comparison" width="85%">
+  <img src="reports/figures/Model_Compare.png" alt="Model Comparison" width="85%">
   <br><em>Model comparison — net profit, recall, and ROC-AUC across all four models</em>
 </p>
 
