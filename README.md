@@ -80,7 +80,7 @@ We did not pick $200 and $5 arbitrarily. We derived them from actual banking eco
 | Cost ratio (FN to FP)                       | 40:1    | $200 / $5                                                                                             |
 
 <p align="center">
-  <img src="reports/figures/Business_Economics.png" alt="Business Economics" width="90%">
+  <img src="reports/figures/Business_Economics.png" alt="Business Economics" width="95%">
   <br><em>Banking economics — cost derivation for false negatives ($200) and false positives ($5)</em>
 </p>
 
