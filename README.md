@@ -213,6 +213,7 @@ We identified the following risks during our analysis and documented how we addr
   <img src="reports/figures/Skewed_Data.png" alt="Feature Distributions" width="90%">
   <br><em>Distribution of numeric features — note right-skewed campaign and the 999 sentinel in pdays</em>
 </p>
+
 <p align="center">
   <img src="reports/figures/Correlation_Matrix.png" alt="Correlation Matrix" width="90%">
   <br><em>Correlation matrix — euribor3m, emp.var.rate and nr.employed are highly collinear (&gt;0.9)</em>
