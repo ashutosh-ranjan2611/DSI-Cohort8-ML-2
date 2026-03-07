@@ -43,23 +43,14 @@
 
 ---
 
-## Executive Summary
+### Business / CFO Visuals
 
-This project applies supervised machine learning to improve the performance of a bank's direct telephone marketing campaign. By predicting which customers are most likely to subscribe to a term deposit, the model helps the bank reduce outreach costs, increase conversion rates, and allocate call centre capacity more effectively.
-
-**Key outcomes:**
-
-- Built and compared **four models**: Logistic Regression, Random Forest, XGBoost, and KNN
-- All models tuned via **Optuna Bayesian hyperparameter search** (30 trials, 5-fold stratified cross-validation)
-- **Logistic Regression** selected as winner with **$108,345 net profit** and **100% recall** at cost-optimal threshold 0.14
-- Applied **SHAP analysis** with business-friendly feature labels for transparent, explainable predictions
-- Delivered a **Streamlit dashboard** with five stakeholder tabs — from C-suite KPIs to single-client predictions
-- Implemented a **46-test pytest suite** with synthetic fixtures for reproducible quality assurance
-- Full pipeline runs end-to-end with a **single command**: `python scripts/run_pipeline.py`
-
-The project balances predictive rigour with real-world usability, translating model outputs into dollar-denominated business impact using banking economics (FN = $200, FP = $5, cost ratio = 40:1).
-
----
+<p align="center">
+  <img src="reports/Ml model pic/CFO_Summary.png" alt="CFO Summary" width="45%">
+  &nbsp;&nbsp;
+  <img src="reports/Ml model pic/ROI.png" alt="ROI Breakdown" width="45%">
+  <br><em>Executive summary visuals: CFO net-profit summary and ROI breakdown.</em>
+</p>
 
 ## Project Overview and Purpose
 
@@ -105,13 +96,13 @@ We did not pick $200 and $5 arbitrarily. We derived them from actual banking eco
 
 We set out to answer four questions:
 
-1. **Who should the bank call?** — Build a model that scores every customer by their likelihood to subscribe, so the marketing team can prioritize high-probability leads and skip the rest.
+1. **Who should the bank call?** - Build a model that scores every customer by their likelihood to subscribe, so the marketing team can prioritize high-probability leads and skip the rest.
 
-2. **How much money does this save?** — Translate model performance into actual dollar impact. We want to show the CFO a clear before-and-after comparison: here is what you spend now, and here is what you would spend with ML targeting.
+2. **How much money does this save?** - Translate model performance into actual dollar impact. We want to show the CFO a clear before-and-after comparison: here is what you spend now, and here is what you would spend with ML targeting.
 
-3. **Why does the model make its predictions?** — Use SHAP (a model explanation method) to show which factors push a customer toward subscribing or not. This gives the marketing team actionable insight — not just "call this person" but "call this person because they are a retiree who was contacted via mobile during a low interest rate period."
+3. **Why does the model make its predictions?** - Use SHAP (a model explanation method) to show which factors push a customer toward subscribing or not. This gives the marketing team actionable insight — not just "call this person" but "call this person because they are a retiree who was contacted via mobile during a low interest rate period."
 
-4. **Can we trust the model's probabilities?** — A model that says "70% chance of subscribing" should be right about 70% of the time. We measure this through calibration analysis, so stakeholders know whether to take the numbers at face value.
+4. **Can we trust the model's probabilities?** - A model that says "70% chance of subscribing" should be right about 70% of the time. We measure this through calibration analysis, so stakeholders know whether to take the numbers at face value.
 
 **Who benefits from this system:**
 
@@ -198,8 +189,8 @@ This severe imbalance means a naive model predicting "no" for everyone achieves 
 | nr.employed    | 5167  | 4964  | 5228  | Number of employees (quarterly)                     |
 
 <p align="center">
-  <img src="reports/figures/08d_feature_distributions.png" alt="Feature Distributions" width="90%">
-  <br><em>Distribution of numeric features — note right-skewed campaign and the 999 sentinel in pdays</em>
+  <img src="reports/figures/Numerical_Feature.png" alt="Numerical Feature Distributions" width="85%">
+  <br><em>Numerical feature distributions across the dataset</em>
 </p>
 
 ### Key EDA Findings
@@ -213,12 +204,22 @@ This severe imbalance means a naive model predicting "no" for everyone achieves 
 - **Outliers present:** `campaign` has extreme values (up to 56 calls). We clip numeric features at the 1st and 99th percentiles during preprocessing.
 
 <p align="center">
-  <img src="reports/figures/07_age_distribution.png" alt="Age Distribution by Subscription" width="70%">
+  <img src="reports/figures/Skewed_Data.png" alt="Feature Distributions" width="90%">
+  <br><em>Distribution of numeric features — note right-skewed campaign and the 999 sentinel in pdays</em>
+</p>
+
+<p align="center">
+  <img src="reports/Ml model pic/Multicollinearity-Data-Leakage.png" alt="Multicollinearity and Data Leakage" width="85%">
+  <br><em>Multicollinearity among economic indicators and data leakage analysis (duration excluded)</em>
+</p>
+
+<p align="center">
+  <img src="reports/figures/07_age_distribution.png" alt="Age Distribution by Subscription" width="80%">
   <br><em>Age distribution — U-shaped subscription pattern (students and retirees subscribe at higher rates)</em>
 </p>
 
 <p align="center">
-  <img src="reports/figures/06_correlation_matrix.png" alt="Correlation Matrix" width="75%">
+  <img src="reports/figures/Correlation_Matrix.png" alt="Correlation Matrix" width="80%">
   <br><em>Correlation matrix — euribor3m, emp.var.rate and nr.employed are highly collinear (&gt;0.9)</em>
 </p>
 
@@ -271,7 +272,7 @@ We applied a deliberate, per-column strategy for unknown values:
 | `default`   | 20.9%        | Keep "unknown" as a category | High unknown rate; a bank not knowing a customer's credit default status is itself informative        |
 
 <p align="center">
-  <img src="reports/figures/08_unknown_values.png" alt="Unknown Values by Column" width="70%">
+  <img src="reports/figures/Missing_Values_Unknown_Placeholders.png" alt="Unknown Values by Column" width="80%">
   <br><em>Proportion of "unknown" entries per column — default (21%) is kept as a category; others are mode-imputed</em>
 </p>
 
@@ -281,7 +282,7 @@ We applied a deliberate, per-column strategy for unknown values:
 - This approach preserves row count (important for a dataset with only 11.3% positive class) while limiting the effect of outliers on Logistic Regression. Tree-based models are naturally robust to outliers.
 
 <p align="center">
-  <img src="reports/figures/08c_outlier_boxplots.png" alt="Outlier Boxplots" width="85%">
+  <img src="reports/figures/Outlier.png" alt="Outlier Boxplots" width="85%">
   <br><em>Boxplots before and after clipping — extreme values in campaign and pdays are capped at the 1st/99th percentile</em>
 </p>
 
@@ -336,7 +337,7 @@ We identified the following risks during our analysis and documented how we addr
 
 ### Why These Models
 
-We use four models — one interpretable baseline, two tree-based ensembles, and one distance-based model:
+We use four models - one interpretable baseline, two tree-based ensembles, and one distance-based model:
 
 | Model               | Role in the Pipeline               | Strength                                                                                                       |
 | ------------------- | ---------------------------------- | -------------------------------------------------------------------------------------------------------------- |
@@ -347,7 +348,7 @@ We use four models — one interpretable baseline, two tree-based ensembles, and
 
 ### How We Pick the Best Model
 
-Accuracy is misleading on imbalanced data — a model that always predicts "no" gets 88.3% accuracy but catches zero subscribers. Instead, we select the model with the **highest net profit** on the test set.
+Accuracy is misleading on imbalanced data - a model that always predicts "no" gets 88.3% accuracy but catches zero subscribers. Instead, we select the model with the **highest net profit** on the test set.
 
 Net profit is calculated from the confusion matrix using real banking economics:
 
@@ -361,7 +362,7 @@ This directly answers the business question: _which model makes the bank the mos
 
 ## Handling Imbalanced Data
 
-The target variable has a significant class imbalance: only **11.3% of customers subscribed** to a term deposit. Without intervention, models tend to predict "no" for everyone — achieving 88.7% accuracy but catching zero subscribers.
+The target variable has a significant class imbalance: only **11.3% of customers subscribed** to a term deposit. Without intervention, models tend to predict "no" for everyone - achieving 88.7% accuracy but catching zero subscribers.
 
 ### Our Approach: Class Weighting + Cost-Optimal Threshold Tuning
 
@@ -369,15 +370,15 @@ We deliberately chose **not** to use synthetic oversampling techniques (SMOTE, A
 
 **1. Class weighting during training:**
 
-- Logistic Regression and Random Forest: `class_weight='balanced'` — automatically adjusts weights inversely proportional to class frequency
-- XGBoost: `scale_pos_weight` — computed automatically as `(count_negative / count_positive)` ≈ 7.84
+- Logistic Regression and Random Forest: `class_weight='balanced'` - automatically adjusts weights inversely proportional to class frequency
+- XGBoost: `scale_pos_weight` - computed automatically as `(count_negative / count_positive)` ≈ 7.84
 - KNN: No native class weighting; relies on threshold tuning
 
 **2. Cost-optimal threshold selection post-training:**
 
 - Instead of the default 0.50 probability cutoff, we scan 200 threshold values between 0.01 and 0.99
 - At each threshold, we compute the confusion matrix and calculate **net profit** using banking economics (FN = $200, FP = $5)
-- The threshold that maximizes net profit is selected — typically around 0.05–0.13, which aggressively catches subscribers at the cost of more false positives
+- The threshold that maximizes net profit is selected - typically around 0.05–0.13, which aggressively catches subscribers at the cost of more false positives
 
 ### Why Not SMOTE?
 
@@ -388,34 +389,34 @@ We deliberately chose **not** to use synthetic oversampling techniques (SMOTE, A
 | Class weighting is simpler and cleaner | Achieves the same effect as SMOTE without generating synthetic data points                     |
 | Tree models are robust                 | Random Forest and XGBoost handle imbalance well with `class_weight` / `scale_pos_weight` alone |
 
-This approach gives us **96–100% recall** on the test set — meaning we catch nearly every potential subscriber — while keeping the methodology straightforward and interpretable.
+This approach gives us **96–100% recall** on the test set - meaning we catch nearly every potential subscriber - while keeping the methodology straightforward and interpretable.
 
 ---
 
 ## Model Development
 
-We developed a streamlined, modular pipeline to handle preprocessing and model training end-to-end. The full implementation spans [`src/features.py`](src/features.py) and [`src/train.py`](src/train.py).
+We developed a streamlined, modular pipeline to handle preprocessing and model training end-to-end. The full implementation done in [`scripts/run_pipeline.py`](scripts/run_pipeline.py).
 
 ### Preprocessing Pipeline
 
 All feature transformations are wrapped inside a scikit-learn `Pipeline` to prevent data leakage and ensure reproducibility:
 
-**Step 1 — PdaysTransformer (custom sklearn transformer):**
+**Step 1 - PdaysTransformer (custom sklearn transformer):**
 
 The `pdays` column uses 999 as a sentinel value meaning "this customer was never previously contacted." Our custom `PdaysTransformer` (a proper `sklearn.base.BaseEstimator` with `fit` / `transform` methods) converts this into two features:
 
-- `was_previously_contacted` — binary flag (0 or 1)
-- `pdays_log` — log-transformed days since last contact (for previously contacted customers)
+- `was_previously_contacted` - binary flag (0 or 1)
+- `pdays_log` - log-transformed days since last contact (for previously contacted customers)
 
-**Step 2 — ColumnTransformer:**
+**Step 2 - ColumnTransformer:**
 
 | Feature Type          | Columns                                                                                                                           | Transformation                                                                                                                                         |
 | --------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Numeric (10 features) | age, campaign, previous, emp.var.rate, cons.price.idx, cons.conf.idx, euribor3m, nr.employed, was_previously_contacted, pdays_log | `StandardScaler` (zero mean, unit variance)                                                                                                            |
 | Ordinal (1 feature)   | education                                                                                                                         | `OrdinalEncoder` with explicit ordering: illiterate < basic.4y < basic.6y < basic.9y < high.school < professional.course < university.degree < unknown |
-| Nominal (9 features)  | job, marital, default, housing, loan, contact, month, day_of_week, poutcome                                                       | `OneHotEncoder` (`drop='if_binary'` — drops one level only for binary columns)                                                                         |
+| Nominal (9 features)  | job, marital, default, housing, loan, contact, month, day_of_week, poutcome                                                       | `OneHotEncoder` (`drop='if_binary'` - drops one level only for binary columns)                                                                         |
 
-**Step 3 — Classifier:**
+**Step 3 - Classifier:**
 
 The final stage of the pipeline is the classifier itself. The entire pipeline (PdaysTransformer → ColumnTransformer → Classifier) is fitted as a single unit, ensuring all transformations are learned from training data only.
 
@@ -423,10 +424,10 @@ The final stage of the pipeline is the classifier itself. The entire pipeline (P
 
 | Model               | Hyperparameter Tuning                                                             | Class Imbalance Handling    | Key Configuration                                 |
 | ------------------- | --------------------------------------------------------------------------------- | --------------------------- | ------------------------------------------------- |
-| Logistic Regression | Optuna (30 trials) — C, penalty, solver                                           | `class_weight='balanced'`   | L1 or L2 regularization; liblinear or saga solver |
-| Random Forest       | Optuna (30 trials) — n_estimators, max_depth, min_samples_split/leaf              | `class_weight='balanced'`   | 100–500 trees; max_depth 5–30                     |
-| XGBoost             | Optuna (30 trials) — max_depth, learning_rate, n_estimators, subsample, colsample | `scale_pos_weight` (auto)   | Eval metric: AUC-PR; tree_method: hist            |
-| KNN                 | Optuna (30 trials) — n_neighbors, weights, metric                                 | N/A (threshold tuning only) | n_neighbors 3–50; distance or uniform weights     |
+| Logistic Regression | Optuna (30 trials) - C, penalty, solver                                           | `class_weight='balanced'`   | L1 or L2 regularization; liblinear or saga solver |
+| Random Forest       | Optuna (30 trials) - n_estimators, max_depth, min_samples_split/leaf              | `class_weight='balanced'`   | 100–500 trees; max_depth 5–30                     |
+| XGBoost             | Optuna (30 trials) - max_depth, learning_rate, n_estimators, subsample, colsample | `scale_pos_weight` (auto)   | Eval metric: AUC-PR; tree_method: hist            |
+| KNN                 | Optuna (30 trials) - n_neighbors, weights, metric                                 | N/A (threshold tuning only) | n_neighbors 3–50; distance or uniform weights     |
 
 All hyperparameter tuning uses **5-fold stratified cross-validation** with `roc_auc` as the scoring metric. Results are logged to **MLflow** for experiment tracking.
 
@@ -434,16 +435,21 @@ All hyperparameter tuning uses **5-fold stratified cross-validation** with `roc_
 
 ## Key Results
 
-### Model Performance (Test Set — No Duration Feature)
+### Model Performance (Test Set - No Duration Feature)
 
 | Model                     | Threshold | Recall | ROC-AUC | Net Profit   |
 | ------------------------- | --------- | ------ | ------- | ------------ |
-| **Logistic Regression** ★ | 0.14      | 100%   | 0.8011  | **$108,345** |
+| **Logistic Regression** ✔ | 0.14      | 100%   | 0.8011  | **$108,345** |
 | XGBoost                   | 0.122     | 100%   | 0.8116  | $108,250     |
 | Random Forest             | 0.118     | 100%   | 0.8112  | $108,245     |
 | KNN                       | 0.05      | 86.21% | 0.7822  | $81,850      |
 
-★ Winner selected by highest net profit. Threshold is optimised per model on the validation set using business cost analysis (FN cost = $200, FP cost = $5).
+✔ Winner selected by highest net profit. Threshold is optimised per model on the validation set using business cost analysis (FN cost = $200, FP cost = $5).
+
+<p align="center">
+  <img src="reports/Ml model pic/Model_Compare.png" alt="Model Comparison" width="85%">
+  <br><em>Model comparison — net profit, recall, and ROC-AUC across all four models</em>
+</p>
 
 ---
 
@@ -466,7 +472,7 @@ flowchart LR
     end
 
     %% ── Stage 2: Core Pipeline ────────────────────────────────────────────────
-    subgraph SRC["⚙️  src/  —  Core Pipeline"]
+    subgraph SRC["⚙️  src/  -  Core Pipeline"]
         direction TB
         ING["ingest.py\nDownload & validate UCI data"]
         CLN["clean.py\nDe-dup · clip outliers\nimpute unknowns · drop duration"]
@@ -489,7 +495,7 @@ flowchart LR
     APP(["🖥️  app/main.py\nStreamlit Dashboard\n5 stakeholder tabs"])
 
     %% ── Experiments (side lane) ───────────────────────────────────────────────
-    subgraph EXP["🔬  experiments/  —  Jupyter Notebooks"]
+    subgraph EXP["🔬  experiments/  -  Jupyter Notebooks"]
         direction TB
         N01["01_eda.ipynb\nExploratory Data Analysis"]
         N02["02_feature_engineering.ipynb\nPipeline Walkthrough"]
@@ -570,7 +576,18 @@ DSI-Cohort8-ML-2/
 |-- pyproject.toml
 |-- requirements.txt
 |-- README.md
+
 ```
+
+---
+
+## Model Visualisations
+
+Quick access to the full set of model and business-impact visuals is available in the project docs:
+
+- [Model Visualisations (full gallery)](docs/model_visuals.md)
+
+Below is a thumbnail for the model comparison chart; open the gallery for the complete set.
 
 ---
 
@@ -590,8 +607,8 @@ We deployed the best-performing model (Logistic Regression, Optuna-tuned) using 
 
 Our deployment follows a straightforward architecture:
 
-- **Model artifacts:** Saved as scikit-learn pipeline `.pkl` files using `joblib`
-- **Preprocessing pipeline:** All encoders and scalers are embedded inside the pipeline — a single `.pkl` file handles everything from raw input to prediction
+- **Model artifacts:** Saved as scikit-learn pipeline files using `.pkl`
+- **Preprocessing pipeline:** All encoders and scalers are embedded inside the pipeline - a single `.pkl` file handles everything from raw input to prediction
 - **Threshold configuration:** Cost-optimal threshold stored in `models/threshold.json`
 - **Interactive interface:** Real-time prediction with user-friendly inputs and visual explanations
 
@@ -615,15 +632,6 @@ The Batch Predict tab supports bulk scoring for campaign execution:
 
 This enables marketing teams to pre-screen entire customer segments before launching campaigns, ensuring resources are invested where they generate the highest returns.
 
-### Business Application and ROI
-
-Our model translates predictions into measurable business impact:
-
-- **Cost per unnecessary call (FP):** ~$5 (agent time + telephony)
-- **Revenue per new subscriber (TP):** ~$200 (conservative NIM-based lifetime value)
-- **Net profit at optimal threshold:** $108,345 (Logistic Regression, threshold = 0.14)
-- **Baseline comparison:** Random calling of all customers yields ~$108,350 in gross revenue minus ~$205,940 in call costs = net loss. Our model eliminates ~14% of unnecessary calls while catching 100% of subscribers.
-
 ---
 
 ## Requirements and Technology Stack
@@ -632,41 +640,38 @@ This project relies on a suite of Python libraries and frameworks that support e
 
 ### Core Data Libraries
 
-- **pandas** (≥2.0) — Structured data manipulation, cleaning, and tabular analysis
-- **NumPy** (2.4.2) — Numerical computations and array operations
-- **SciPy** (1.17.1) — Statistical functions used in evaluation and analysis
+- **pandas**
+- **NumPy**
+- **SciPy**
 
 ### Machine Learning and Modelling
 
-- **scikit-learn** (1.8.0) — Supervised learning, preprocessing, model selection, and evaluation
-  - Estimators: `LogisticRegression`, `RandomForestClassifier`, `KNeighborsClassifier`
-  - Pipelines: `Pipeline`, `ColumnTransformer`, `StandardScaler`, `OrdinalEncoder`, `OneHotEncoder`
-  - Evaluation: `roc_auc_score`, `precision_recall_curve`, `confusion_matrix`, `StratifiedKFold`
-- **XGBoost** (3.2.0) — High-performance gradient boosting for structured data with built-in `scale_pos_weight` for class imbalance
-- **Optuna** (4.7.0) — Bayesian hyperparameter optimisation with pruning (30 trials per model, 5-fold CV)
-- **SHAP** (0.50.0) — Model interpretability through SHapley Additive exPlanations, highlighting feature contributions per prediction
+- **scikit-learn**
+- **XGBoost**
+- **Optuna**
+- **SHAP**
 
 ### Experiment Tracking
 
-- **MLflow** (3.10.0) — Logs hyperparameters, metrics, and model artifacts for each training run. Stored locally in `mlruns/`
+- **MLflow**
 
 ### Dashboard and Visualisation
 
-- **Streamlit** (1.55.0) — Interactive web application for prediction, exploration, and stakeholder reporting
-- **matplotlib** (3.10.8) — Static plotting for charts and figures
-- **seaborn** (0.13.2) — Statistical visualisation (built on matplotlib)
+- **Streamlit**
+- **matplotlib**
+- **seaborn**
 
 ### Serialisation and I/O
 
-- **joblib** (1.5.3) — Efficient persistence of scikit-learn pipeline objects
-- **openpyxl** (3.1.5) / **et-xmlfile** (2.0.0) — Excel file reading and writing for batch prediction
+- **pickle**
+- **openpyxl** / **et-xmlfile**
 
 ### Development and Testing (optional)
 
-- **pytest** (9.0.2) + **pytest-cov** (7.0.0) — Unit testing with coverage reporting (44 tests)
-- **ruff** (0.15.4) — Fast Python linter (replaces flake8, isort, pyflakes)
-- **mypy** (1.19.1) — Static type checking
-- **Jupyter** (1.1.1) + **JupyterLab** (4.5.5) — Interactive notebook development
+- **pytest** + **pytest-cov**
+- **ruff**
+- **mypy**
+- **Jupyter** + **JupyterLab**
 
 > **Installation:** All core dependencies are managed via `pyproject.toml`. Install with `uv sync --active` or `pip install -r requirements.txt`. Development extras with `uv pip install -e ".[dev]"`.
 
@@ -678,7 +683,7 @@ Our team of four split the work across the major components of the project. Whil
 
 | Member              | Primary Responsibility                             | Deliverables                                                                                                                                                                                                                                                                               |
 | ------------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Neha Bondade**    | Data pipeline and cleaning                         | Building the data ingestion module that handles the nested ZIP extraction from UCI. Designing the cleaning strategy — the per-column unknown handling rules, outlier clipping approach, and data quality checks (duplicates, skewness, multicollinearity, cardinality).                    |
+| **Neha Bondade**    | Data pipeline and cleaning                         | Building the data ingestion module that handles the nested ZIP extraction from UCI. Designing the cleaning strategy - the per-column unknown handling rules, outlier clipping approach, and data quality checks (duplicates, skewness, multicollinearity, cardinality).                    |
 | **Suresh Jannu**    | Model training and tuning                          | Implementing the training pipeline with Optuna hyperparameter search for all four model types. Defining the search spaces, configuring class imbalance handling, and building the before-versus-after tuning comparison.                                                                   |
 | **Pavan**           | Evaluation and explainability                      | Designing the composite model selection framework with the weighted scoring approach. Building the banking economics cost derivation, threshold optimization, sensitivity analysis, and recall trade-off analysis. Implementing SHAP explainability with business-friendly feature labels. |
 | **Ashutosh Ranjan** | Integration, Dashboard, documentation, and testing | Will design and develop end-to-end final code for the project. Building the Streamlit dashboard with five stakeholder tabs (Executive Summary, Call Centre Operations, Model and Data Science, Predict Client, Batch Predict).                                                             |
@@ -695,10 +700,10 @@ Our team of four split the work across the major components of the project. Whil
 
 #### _place holder to be updated in future_
 
-- [Neha Bondade — Reflection Video](https://youtube.com/placeholder)
-- [Suresh Jannu — Reflection Video](https://youtube.com/placeholder)
-- [Pavan — Reflection Video](https://youtube.com/placeholder)
-- [Ashutosh Ranjan — Reflection Video](https://youtube.com/placeholder)
+- [Neha Bondade - Reflection Video](https://youtube.com/placeholder)
+- [Suresh Jannu - Reflection Video](https://youtube.com/placeholder)
+- [Pavan - Reflection Video](https://youtube.com/placeholder)
+- [Ashutosh Ranjan - Reflection Video](https://youtube.com/placeholder)
 
 ---
 
@@ -725,17 +730,17 @@ This project demonstrates how supervised machine learning can transform bank mar
 - **Drift monitoring:** Leverage the saved `data/reference/train_reference.parquet` file to implement data drift detection (e.g., with Evidently) and trigger automated retraining
 - **A/B testing framework:** Design an experiment to compare model-targeted campaigns versus random-selection campaigns to validate real-world lift
 
-> The groundwork is set for scaled deployment, continuous monitoring, and iterative improvement — turning predictive insights into sustainable business impact.
+> The groundwork is set for scaled deployment, continuous monitoring, and iterative improvement - turning predictive insights into sustainable business impact.
 
 ---
 
 ## Acknowledgments
 
-- **Dataset:** [UCI Machine Learning Repository — Bank Marketing](https://archive.ics.uci.edu/dataset/222/bank+marketing)
+- **Dataset:** [UCI Machine Learning Repository - Bank Marketing](https://archive.ics.uci.edu/dataset/222/bank+marketing)
 - **Original research:** Moro, S., Cortez, P., and Rita, P. (2014). "A data-driven approach to predict the success of bank telemarketing." Decision Support Systems, 62, 22-31.
-- **Course:** Data Science Institute, University of Toronto — Cohort 8
+- **Course:** Data Science Institute, University of Toronto - Cohort 8
 - **Tools:** scikit-learn, XGBoost, Optuna, SHAP, Streamlit, Plotly
 
 ---
 
-<p align="center"><i>Built by DSI Cohort 8 — ML Team 2</i></p>
+<p align="center"><i>Built by DSI Cohort 8 - ML Team 2</i></p>

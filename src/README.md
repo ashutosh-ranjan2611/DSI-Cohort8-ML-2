@@ -337,6 +337,16 @@ Tests use synthetic data fixtures defined in `tests/conftest.py` to avoid depend
 
 ```bash
 pytest tests/ -v
+---
+## Compact Model Visuals
+
+A compact gallery of model and business visuals is available at `docs/model_visuals.md`. Click the thumbnail below to view the full gallery.
+
+<p align="center">
+  <a href="../docs/model_visuals.md">
+    <img src="../reports/Ml model pic/Model_Compare.png" alt="Model Compare" width="70%">
+  </a>
+</p>
 ```
 
 ---
